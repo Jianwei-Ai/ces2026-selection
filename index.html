@@ -296,8 +296,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
         </div>
 
         <h3 style="margin-top:20px;">Bulk Actions</h3>
-        <button class="btn btn-success" style="width:100%;margin-bottom:6px;" onclick="saveUpdatedHTML()">💾 Save Updated Portal</button>
+        <div style="background:#f0fff4;border:1px solid #c6f6d5;border-radius:6px;padding:8px;margin-bottom:8px;font-size:12px;color:#276749;text-align:center;">
+            ☁️ Auto-saving to cloud — all changes sync in real-time
+        </div>
         <button class="btn btn-primary" style="width:100%;margin-bottom:6px;" onclick="showExportModal()">📥 Export Changes</button>
+        <button class="btn" style="width:100%;margin-bottom:6px;" onclick="downloadBackup()">💾 Download Backup (HTML)</button>
         <button class="btn" style="width:100%;margin-bottom:6px;" onclick="showChangeLog()">📋 View Change Log (<span id="changeCount">0</span>)</button>
         <button class="btn btn-warning" style="width:100%;margin-bottom:6px;" onclick="resetAll()">↺ Reset to Original</button>
         <button class="btn" style="width:100%;margin-bottom:6px;background:#9f7aea;color:white;" onclick="openAddPaper()">+ Add New Paper</button>
@@ -2368,11 +2371,9 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ============================================================
-// SAVE UPDATED HTML (overwrite same file using File System Access API)
+// DOWNLOAD BACKUP (optional offline backup)
 // ============================================================
-let _fileHandle = null;  // remember file handle for subsequent saves
-
-function _buildUpdatedHTML() {
+function downloadBackup() {
     const updatedPapers = PAPERS.map(p => ({...p, status: paperStates[p.id]}));
     const updatedSessions = JSON.parse(JSON.stringify(SESSIONS));
 
@@ -2383,8 +2384,8 @@ function _buildUpdatedHTML() {
     const startIdx = html.indexOf(startMarker);
     const endIdx = html.indexOf(endMarker);
     if (startIdx < 0 || endIdx < 0) {
-        alert('Error: Could not locate data markers in HTML. Save failed.');
-        return null;
+        alert('Error: Could not build backup.');
+        return;
     }
 
     const newData = startMarker + '\n'
@@ -2396,41 +2397,12 @@ function _buildUpdatedHTML() {
         + 'let sessionChanges = [];\n'
         + endMarker;
 
-    return html.substring(0, startIdx) + newData + html.substring(endIdx + endMarker.length);
-}
+    html = html.substring(0, startIdx) + newData + html.substring(endIdx + endMarker.length);
 
-async function saveUpdatedHTML() {
-    const html = _buildUpdatedHTML();
-    if (!html) return;
-
-    // Try File System Access API (Chromium browsers) to save in place
-    if (window.showSaveFilePicker) {
-        try {
-            if (!_fileHandle) {
-                _fileHandle = await window.showSaveFilePicker({
-                    suggestedName: 'CES2026_Paper_Selection.html',
-                    types: [{ description: 'HTML', accept: { 'text/html': ['.html'] } }]
-                });
-            }
-            const writable = await _fileHandle.createWritable();
-            await writable.write(html);
-            await writable.close();
-            // Clear change tracking after successful save
-            changes.length = 0;
-            document.getElementById('changesBanner').style.display = 'none';
-            alert('Saved successfully!');
-            return;
-        } catch (e) {
-            if (e.name === 'AbortError') return; // user cancelled picker
-            console.warn('File System Access API failed, falling back to download:', e);
-        }
-    }
-
-    // Fallback: download
     const blob = new Blob([html], { type: 'text/html' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = 'CES2026_Paper_Selection.html';
+    link.download = 'CES2026_Backup_' + new Date().toISOString().slice(0,10) + '.html';
     link.click();
     URL.revokeObjectURL(link.href);
 }
