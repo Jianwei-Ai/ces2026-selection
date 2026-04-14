@@ -1154,25 +1154,30 @@ function _orgSessionId(session) {
 
 function renderOrganizedSessions() {
     const container = document.getElementById('organizedList');
-    let filtered = ORG_SESSIONS.filter(s => (s.rejected ? 'Rejected' : 'Active') === activeOrgStatus);
-    if (activeOrgCategory !== 'All') {
-        filtered = filtered.filter(s => (s.category || 'General') === activeOrgCategory);
-    }
+    // Build list of [globalIndex, session] pairs for filtered sessions
+    let filteredPairs = [];
+    ORG_SESSIONS.forEach((s, gi) => {
+        if ((s.rejected ? 'Rejected' : 'Active') === activeOrgStatus) {
+            if (activeOrgCategory === 'All' || (s.category || 'General') === activeOrgCategory) {
+                filteredPairs.push([gi, s]);
+            }
+        }
+    });
 
-    if (filtered.length === 0) {
+    if (filteredPairs.length === 0) {
         container.innerHTML = '<div class="empty-state"><p>No organized sessions in this view.</p></div>';
         return;
     }
 
     // Summary counts
-    const totalPapers = filtered.reduce((sum, s) => sum + s.papers.length, 0);
-    const noSubCount = filtered.reduce((sum, s) => sum + s.papers.filter(p => p.noSubmission).length, 0);
+    const totalPapers = filteredPairs.reduce((sum, [,s]) => sum + s.papers.length, 0);
+    const noSubCount = filteredPairs.reduce((sum, [,s]) => sum + s.papers.filter(p => p.noSubmission).length, 0);
     let summaryHtml = `<div style="margin-bottom:12px;font-size:13px;color:#4a5568;">
-        ${filtered.length} sessions, ${totalPapers} papers`;
+        ${filteredPairs.length} sessions, ${totalPapers} papers`;
     if (noSubCount > 0) summaryHtml += ` <span style="color:#c53030;">(${noSubCount} without online submission)</span>`;
     summaryHtml += `</div>`;
 
-    container.innerHTML = summaryHtml + filtered.map((session, sIdx) => {
+    container.innerHTML = summaryHtml + filteredPairs.map(([gi, session]) => {
         const isRejected = session.rejected;
         const borderColor = isRejected ? '#e53e3e' : '#9f7aea';
         const bgColor = isRejected ? '#fff5f5' : 'white';
@@ -1185,14 +1190,14 @@ function renderOrganizedSessions() {
                     <span style="font-size:12px;color:#a0aec0;margin-left:8px;">(${session.papers.length} papers)</span>
                 </div>
                 <div style="display:flex;gap:4px;flex-wrap:wrap;">
-                    <select style="font-size:11px;padding:2px 6px;border:1px solid #e2e8f0;border-radius:4px;" onchange="changeOrgCategory('${escapeHtml(session.session).replace(/'/g, "\\'")}', this.value)">
+                    <select style="font-size:11px;padding:2px 6px;border:1px solid #e2e8f0;border-radius:4px;" onchange="changeOrgCategory(${gi}, this.value)">
                         ${ORG_CATEGORIES.filter(c => c !== 'All').map(c => `<option value="${c}" ${(session.category || 'General') === c ? 'selected' : ''}>${c}</option>`).join('')}
                     </select>
-                    <button class="btn" onclick="editOrgSessionTitle('${escapeHtml(session.session).replace(/'/g, "\\'")}' )" style="font-size:11px;padding:2px 8px;" title="Rename session">✏️</button>
-                    <button class="btn" onclick="mergeOrgSession('${escapeHtml(session.session).replace(/'/g, "\\'")}' )" style="font-size:11px;padding:2px 8px;" title="Merge into another session">🔀 Merge</button>
+                    <button class="btn" onclick="editOrgSessionTitle(${gi})" style="font-size:11px;padding:2px 8px;" title="Rename session">✏️</button>
+                    <button class="btn" onclick="mergeOrgSession(${gi})" style="font-size:11px;padding:2px 8px;" title="Merge into another session">🔀 Merge</button>
                     ${isRejected
-                        ? `<button class="btn" onclick="restoreOrgSession('${escapeHtml(session.session).replace(/'/g, "\\'")}' )" style="font-size:11px;padding:2px 8px;background:#48bb78;color:white;" title="Restore session">↩️ Restore</button>`
-                        : `<button class="btn" onclick="rejectOrgSession('${escapeHtml(session.session).replace(/'/g, "\\'")}' )" style="font-size:11px;padding:2px 8px;background:#e53e3e;color:white;" title="Reject entire session">🗑️ Reject</button>`
+                        ? `<button class="btn" onclick="restoreOrgSession(${gi})" style="font-size:11px;padding:2px 8px;background:#48bb78;color:white;" title="Restore session">↩️ Restore</button>`
+                        : `<button class="btn" onclick="rejectOrgSession(${gi})" style="font-size:11px;padding:2px 8px;background:#e53e3e;color:white;" title="Reject entire session">🗑️ Reject</button>`
                     }
                 </div>
             </div>
@@ -1204,26 +1209,29 @@ function renderOrganizedSessions() {
                     const statusBadge = paperInMain ? ` <span class="${STATUS_CSS[paperStates[p.id]] || ''}" style="font-size:10px;padding:1px 6px;">${paperStates[p.id]}</span>` : '';
                     return `<div style="padding:4px 0;display:flex;align-items:center;justify-content:space-between;">
                         <div>• ${escapeHtml(p.authors)} — <em>${escapeHtml(p.title)}</em>${noSubBadge}${statusBadge}</div>
-                        <button class="btn" onclick="removeFromOrgSession('${escapeHtml(session.session).replace(/'/g, "\\'")}', ${pIdx})" style="font-size:10px;padding:1px 6px;color:#e53e3e;" title="Remove paper from session">✕</button>
+                        <div style="display:flex;gap:2px;">
+                            <button class="btn" onclick="moveOrgPaperToSession(${gi}, ${pIdx})" style="font-size:10px;padding:1px 6px;color:#4299e1;" title="Move to another session">↗️</button>
+                            <button class="btn" onclick="removeFromOrgSession(${gi}, ${pIdx})" style="font-size:10px;padding:1px 6px;color:#e53e3e;" title="Remove paper from session">✕</button>
+                        </div>
                     </div>`;
                 }).join('')}
             </div>
             <div style="margin-top:8px;display:flex;gap:4px;">
-                <button class="btn" onclick="addPaperToOrgSession('${escapeHtml(session.session).replace(/'/g, "\\'")}' )" style="font-size:11px;padding:2px 8px;">+ Add Paper</button>
-                <button class="btn" onclick="moveOrgPaperFromPool('${escapeHtml(session.session).replace(/'/g, "\\'")}' )" style="font-size:11px;padding:2px 8px;">📥 Move Paper From Pool</button>
+                <button class="btn" onclick="addPaperToOrgSession(${gi})" style="font-size:11px;padding:2px 8px;">+ Add Paper</button>
+                <button class="btn" onclick="moveOrgPaperFromPool(${gi})" style="font-size:11px;padding:2px 8px;">📥 Move Paper From Pool</button>
             </div>
         </div>`;
     }).join('');
 }
 
-function changeOrgCategory(sessionTitle, newCategory) {
-    const org = ORG_SESSIONS.find(o => o.session === sessionTitle);
+function changeOrgCategory(gi, newCategory) {
+    const org = ORG_SESSIONS[gi];
     if (org) {
         const oldCat = org.category || 'General';
         org.category = newCategory;
         changes.push({
             id: 0,
-            title: 'Session: ' + sessionTitle.substring(0, 40),
+            title: 'Session: ' + (org.session || '').substring(0, 40),
             from: 'Category: ' + oldCat,
             to: 'Category: ' + newCategory,
             timestamp: new Date().toLocaleString(),
@@ -1237,12 +1245,11 @@ function changeOrgCategory(sessionTitle, newCategory) {
 }
 
 // --- Reject / Restore an organized session ---
-function rejectOrgSession(sessionTitle) {
-    const org = ORG_SESSIONS.find(o => o.session === sessionTitle);
+function rejectOrgSession(gi) {
+    const org = ORG_SESSIONS[gi];
     if (!org) return;
-    if (!confirm(`Reject entire session "${sessionTitle}"?\nAll ${org.papers.length} papers will be moved to Rejected status.`)) return;
+    if (!confirm(`Reject entire session "${org.session}"?\nAll ${org.papers.length} papers will be moved to Rejected status.`)) return;
     org.rejected = true;
-    // Update paper statuses
     org.papers.forEach(p => {
         if (paperStates[p.id] !== undefined) {
             const oldStatus = paperStates[p.id];
@@ -1261,7 +1268,7 @@ function rejectOrgSession(sessionTitle) {
     });
     changes.push({
         id: 0,
-        title: 'Session: ' + sessionTitle.substring(0, 40),
+        title: 'Session: ' + (org.session || '').substring(0, 40),
         from: 'Active',
         to: 'Rejected (entire session)',
         timestamp: new Date().toLocaleString(),
@@ -1274,11 +1281,10 @@ function rejectOrgSession(sessionTitle) {
     renderOrganizedSessions();
 }
 
-function restoreOrgSession(sessionTitle) {
-    const org = ORG_SESSIONS.find(o => o.session === sessionTitle);
+function restoreOrgSession(gi) {
+    const org = ORG_SESSIONS[gi];
     if (!org) return;
     org.rejected = false;
-    // Restore paper statuses to Accepted (In-Person)
     org.papers.forEach(p => {
         if (paperStates[p.id] !== undefined) {
             const oldStatus = paperStates[p.id];
@@ -1297,7 +1303,7 @@ function restoreOrgSession(sessionTitle) {
     });
     changes.push({
         id: 0,
-        title: 'Session: ' + sessionTitle.substring(0, 40),
+        title: 'Session: ' + (org.session || '').substring(0, 40),
         from: 'Rejected',
         to: 'Active (restored)',
         timestamp: new Date().toLocaleString(),
@@ -1311,26 +1317,26 @@ function restoreOrgSession(sessionTitle) {
 }
 
 // --- Merge organized session into another ---
-function mergeOrgSession(sessionTitle) {
-    const org = ORG_SESSIONS.find(o => o.session === sessionTitle);
+function mergeOrgSession(gi) {
+    const org = ORG_SESSIONS[gi];
     if (!org) return;
-    const otherSessions = ORG_SESSIONS.filter(o => o.session !== sessionTitle && !o.rejected)
-        .map(o => o.session);
-    if (otherSessions.length === 0) { alert('No other active sessions to merge into.'); return; }
+    const otherPairs = [];
+    ORG_SESSIONS.forEach((o, i) => {
+        if (i !== gi && !o.rejected) otherPairs.push([i, o]);
+    });
+    if (otherPairs.length === 0) { alert('No other active sessions to merge into.'); return; }
 
-    const choices = otherSessions.map((s, i) => `${i + 1}. ${s}`).join('\n');
-    const input = prompt(`Merge "${sessionTitle}" into which session?\n\n${choices}\n\nEnter number:`);
+    const choices = otherPairs.map(([,o], i) => `${i + 1}. ${o.session} (${o.organizer})`).join('\n');
+    const input = prompt(`Merge "${org.session}" into which session?\n\n${choices}\n\nEnter number:`);
     if (!input) return;
     const idx = parseInt(input) - 1;
-    if (isNaN(idx) || idx < 0 || idx >= otherSessions.length) { alert('Invalid selection.'); return; }
+    if (isNaN(idx) || idx < 0 || idx >= otherPairs.length) { alert('Invalid selection.'); return; }
 
-    const target = ORG_SESSIONS.find(o => o.session === otherSessions[idx]);
+    const target = ORG_SESSIONS[otherPairs[idx][0]];
     if (!target) return;
 
-    // Move all papers to target
     org.papers.forEach(p => {
         target.papers.push(p);
-        // Update paper's organized session reference
         const paper = PAPERS.find(pp => pp.id === p.id);
         if (paper) {
             paper.organizedSession = target.session;
@@ -1341,15 +1347,13 @@ function mergeOrgSession(sessionTitle) {
     changes.push({
         id: 0,
         title: 'Session merge',
-        from: sessionTitle.substring(0, 40),
-        to: 'Merged into: ' + target.session.substring(0, 40),
+        from: (org.session || '').substring(0, 40),
+        to: 'Merged into: ' + (target.session || '').substring(0, 40),
         timestamp: new Date().toLocaleString(),
         user: currentUser || 'Unknown'
     });
 
-    // Remove source session
-    const orgIdx = ORG_SESSIONS.indexOf(org);
-    if (orgIdx >= 0) ORG_SESSIONS.splice(orgIdx, 1);
+    ORG_SESSIONS.splice(gi, 1);
 
     document.getElementById('changeCount').textContent = changes.length;
     updateChangesBanner();
@@ -1358,15 +1362,14 @@ function mergeOrgSession(sessionTitle) {
 }
 
 // --- Remove paper from organized session ---
-function removeFromOrgSession(sessionTitle, paperIdx) {
-    const org = ORG_SESSIONS.find(o => o.session === sessionTitle);
+function removeFromOrgSession(gi, paperIdx) {
+    const org = ORG_SESSIONS[gi];
     if (!org || paperIdx < 0 || paperIdx >= org.papers.length) return;
     const p = org.papers[paperIdx];
-    if (!confirm(`Remove "${p.title.substring(0, 60)}..." from session "${sessionTitle}"?`)) return;
+    if (!confirm(`Remove "${p.title.substring(0, 60)}..." from session "${org.session}"?`)) return;
 
     org.papers.splice(paperIdx, 1);
 
-    // Update paper status — move to competitive pool as Accepted (In-Person)
     const paper = PAPERS.find(pp => pp.id === p.id);
     if (paper) {
         paper.isOrganized = false;
@@ -1377,7 +1380,7 @@ function removeFromOrgSession(sessionTitle, paperIdx) {
     changes.push({
         id: p.id,
         title: (p.title || '').substring(0, 50),
-        from: 'Organized: ' + sessionTitle.substring(0, 30),
+        from: 'Organized: ' + (org.session || '').substring(0, 30),
         to: 'Removed from organized session',
         timestamp: new Date().toLocaleString(),
         user: currentUser || 'Unknown'
@@ -1385,10 +1388,59 @@ function removeFromOrgSession(sessionTitle, paperIdx) {
     document.getElementById('changeCount').textContent = changes.length;
     updateChangesBanner();
 
-    // Remove empty session
     if (org.papers.length === 0) {
-        const orgIdx = ORG_SESSIONS.indexOf(org);
-        if (orgIdx >= 0) ORG_SESSIONS.splice(orgIdx, 1);
+        ORG_SESSIONS.splice(gi, 1);
+    }
+
+    renderStats();
+    renderOrgCategoryBar();
+    renderOrganizedSessions();
+}
+
+// --- Move paper from one organized session to another ---
+function moveOrgPaperToSession(fromGi, paperIdx) {
+    const fromOrg = ORG_SESSIONS[fromGi];
+    if (!fromOrg || paperIdx < 0 || paperIdx >= fromOrg.papers.length) return;
+    const p = fromOrg.papers[paperIdx];
+
+    const otherPairs = [];
+    ORG_SESSIONS.forEach((o, i) => {
+        if (i !== fromGi && !o.rejected) otherPairs.push([i, o]);
+    });
+    if (otherPairs.length === 0) { alert('No other active sessions to move to.'); return; }
+
+    const choices = otherPairs.map(([,o], i) => `${i + 1}. ${o.session} (${o.organizer}, ${o.papers.length} papers)`).join('\n');
+    const input = prompt(`Move "${p.title.substring(0, 60)}" to which session?\n\n${choices}\n\nEnter number:`);
+    if (!input) return;
+    const idx = parseInt(input) - 1;
+    if (isNaN(idx) || idx < 0 || idx >= otherPairs.length) { alert('Invalid selection.'); return; }
+
+    const toOrg = ORG_SESSIONS[otherPairs[idx][0]];
+    if (!toOrg) return;
+
+    // Move the paper
+    fromOrg.papers.splice(paperIdx, 1);
+    toOrg.papers.push(p);
+
+    const paper = PAPERS.find(pp => pp.id === p.id);
+    if (paper) {
+        paper.organizedSession = toOrg.session;
+        paper.organizedOrganizer = toOrg.organizer;
+    }
+
+    changes.push({
+        id: p.id,
+        title: (p.title || '').substring(0, 50),
+        from: 'Session: ' + (fromOrg.session || '').substring(0, 30),
+        to: 'Moved to: ' + (toOrg.session || '').substring(0, 30),
+        timestamp: new Date().toLocaleString(),
+        user: currentUser || 'Unknown'
+    });
+    document.getElementById('changeCount').textContent = changes.length;
+    updateChangesBanner();
+
+    if (fromOrg.papers.length === 0) {
+        ORG_SESSIONS.splice(fromGi, 1);
     }
 
     renderStats();
@@ -1397,8 +1449,8 @@ function removeFromOrgSession(sessionTitle, paperIdx) {
 }
 
 // --- Add a new paper (not in pool) to an organized session ---
-function addPaperToOrgSession(sessionTitle) {
-    const org = ORG_SESSIONS.find(o => o.session === sessionTitle);
+function addPaperToOrgSession(gi) {
+    const org = ORG_SESSIONS[gi];
     if (!org) return;
 
     const title = prompt('Paper title:');
@@ -1406,14 +1458,13 @@ function addPaperToOrgSession(sessionTitle) {
     const authors = prompt('Author(s):');
     if (!authors) return;
 
-    // Create new paper in PAPERS
     const newId = PAPERS.length > 0 ? Math.max(...PAPERS.map(p => p.id)) + 1 : 1;
     const newPaper = {
         id: newId, title: title.trim(), authors: authors.trim(),
         coauthors: '', affiliation: '', jobTitle: '', email: '', abstract: '',
         paperLink: '', hasPaperLink: false, jelCodes: '', jelFields: [], primaryField: '',
         primaryFieldName: '', isPhD: false, isOrganized: true,
-        organizedSession: sessionTitle, organizedOrganizer: org.organizer,
+        organizedSession: org.session, organizedOrganizer: org.organizer,
         prefersOnline: false, language: 'English', keywords: '', note: 'No submission via website yet',
         score: 0, abstractQuality: 0, adjustedScore: 0,
         sessionSlot: '', sessionRoom: 0, sessionName: '', status: 'Accepted (In-Person)',
@@ -1428,7 +1479,7 @@ function addPaperToOrgSession(sessionTitle) {
         id: newId,
         title: title.trim().substring(0, 50),
         from: 'New paper (no submission)',
-        to: 'Added to: ' + sessionTitle.substring(0, 30),
+        to: 'Added to: ' + (org.session || '').substring(0, 30),
         timestamp: new Date().toLocaleString(),
         user: currentUser || 'Unknown'
     });
@@ -1440,15 +1491,14 @@ function addPaperToOrgSession(sessionTitle) {
 }
 
 // --- Move existing paper from competitive pool into organized session ---
-function moveOrgPaperFromPool(sessionTitle) {
-    const org = ORG_SESSIONS.find(o => o.session === sessionTitle);
+function moveOrgPaperFromPool(gi) {
+    const org = ORG_SESSIONS[gi];
     if (!org) return;
 
     const query = prompt('Enter paper ID or partial title to search:');
     if (!query || !query.trim()) return;
     const q = query.trim().toLowerCase();
 
-    // Search by ID or title
     let matches = PAPERS.filter(p => {
         if (String(p.id) === q) return true;
         return p.title.toLowerCase().includes(q) || p.authors.toLowerCase().includes(q);
@@ -1464,7 +1514,7 @@ function moveOrgPaperFromPool(sessionTitle) {
 
     const paper = matches[idx];
     paper.isOrganized = true;
-    paper.organizedSession = sessionTitle;
+    paper.organizedSession = org.session;
     paper.organizedOrganizer = org.organizer;
     const oldStatus = paperStates[paper.id];
     paperStates[paper.id] = 'Accepted (In-Person)';
@@ -1475,7 +1525,7 @@ function moveOrgPaperFromPool(sessionTitle) {
         id: paper.id,
         title: paper.title.substring(0, 50),
         from: oldStatus,
-        to: 'Moved to organized: ' + sessionTitle.substring(0, 30),
+        to: 'Moved to organized: ' + (org.session || '').substring(0, 30),
         timestamp: new Date().toLocaleString(),
         user: currentUser || 'Unknown'
     });
@@ -2167,15 +2217,14 @@ function saveAddPaper() {
 // ============================================================
 // EDIT ORGANIZED SESSION TITLE
 // ============================================================
-function editOrgSessionTitle(oldTitle) {
+function editOrgSessionTitle(gi) {
+    const org = ORG_SESSIONS[gi];
+    if (!org) return;
+    const oldTitle = org.session;
     const newTitle = prompt('Enter new session title:', oldTitle);
     if (newTitle && newTitle.trim() !== oldTitle) {
-        // Update ORG_SESSIONS
-        const org = ORG_SESSIONS.find(o => o.session === oldTitle);
-        if (org) org.session = oldTitle;
-        if (org) org.session = newTitle.trim();
+        org.session = newTitle.trim();
 
-        // Update papers
         PAPERS.forEach(p => {
             if (p.organizedSession === oldTitle) {
                 p.organizedSession = newTitle.trim();
