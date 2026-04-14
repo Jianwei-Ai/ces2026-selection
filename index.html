@@ -374,6 +374,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
                 <button class="btn btn-primary" onclick="createNewSession()" style="font-size:12px;margin-left:16px;vertical-align:middle;">+ New Session</button>
                 <button class="btn" onclick="showUnassignedPapers()" style="font-size:12px;margin-left:6px;vertical-align:middle;">📋 Unassigned Papers</button>
                 <button class="btn" onclick="exportSessionsCSV()" style="font-size:12px;margin-left:6px;vertical-align:middle;">📥 Export Sessions</button>
+                <button class="btn" onclick="reassignSessions()" style="font-size:12px;margin-left:6px;vertical-align:middle;background:#805ad5;color:white;">🔄 Auto-Arrange Sessions</button>
             </h2>
             <p style="margin-bottom:8px;font-size:13px;color:#718096;">
                 Papers grouped into sessions of 3–5 by JEL field. Organized sessions are distributed uniformly across parallel slots.
@@ -1961,6 +1962,293 @@ function exportSessionsCSV() {
     link.href = URL.createObjectURL(blob);
     link.download = 'CES2026_program_sessions.csv';
     link.click();
+}
+
+// ============================================================
+// AUTO-ARRANGE SESSIONS
+// ============================================================
+function reassignSessions() {
+    if (!confirm('This will re-arrange ALL program sessions based on current paper statuses.\n\nOrganized sessions (non-rejected) will be kept intact.\nCompetitive papers will be re-grouped by JEL field.\n\nAny manual session edits will be lost.\n\nProceed?')) return;
+
+    const PAPERS_PER_SESSION = 4;
+    const SLOTS = ['A','B','C','D','E','F'];
+
+    // -- Subtopic rules for naming (mirrors Python FIELD_SUBTOPICS) --
+    const SUBTOPICS = {
+        'D': [
+            ['Behavioral Economics', /behavioral|bounded rational|prospect theory|nudge|cognitive bias|loss aversion|experiment.*behavior|行为经济|行为|有限理性|助推/i],
+            ['Household Economics', /household|family|consumption|saving|retirement|intra.household|intergenerational|child|fertility|marriage|aging|elderly|家庭|消费|储蓄|退休|生育|婚姻|养老|老龄/i],
+            ['Digital Economy', /digital econom|digital transform|platform econom|e.commerce|online market|sharing econom|数字经济|数字化转型|平台经济|电商|互联网经济/i],
+            ['Game Theory', /game theor|auction|mechanism design|matching|bargain|contest|strategic interact|博弈|拍卖|机制设计/i],
+            ['Applied Microeconomics', /./i],
+        ],
+        'F': [
+            ['International Trade', /trade|tariff|export|import|WTO|trade policy|trade war|comparative advantage|贸易|关税|出口|进口/i],
+            ['International Finance', /exchange rate|capital flow|FDI|foreign direct|multinational|current account|汇率|资本流动|外国直接投资|跨国/i],
+            ['International Economics', /./i],
+        ],
+        'G': [
+            ['Corporate Finance', /corporate|capital structure|dividend|IPO|merger|acquisition|CEO|board|governance|executive|shareholder|公司|并购|治理/i],
+            ['Asset Pricing', /asset pric|stock return|risk premium|CAPM|factor model|portfolio|cross.section|资产定价|风险溢价/i],
+            ['Banking', /bank|credit|lend|loan|deposit|fintech|intermediat|mortgage|default|银行|信贷|贷款|金融科技/i],
+            ['Financial Economics', /./i],
+        ],
+        'I': [
+            ['Health Economics', /health|hospital|medical|physician|patient|disease|mortality|pharmaceutical|drug|pandemic|COVID|健康|医院|医疗|疾病|药品/i],
+            ['Education', /education|school|student|teacher|university|college|test score|human capital|教育|学校|学生|教师|人力资本/i],
+        ],
+        'O': [
+            ['Innovation and Technology', /innovat|patent|R&D|technolog|automat|robot|AI|artificial intelligence|digital transform|创新|专利|研发|技术|机器人|人工智能|数字化转型/i],
+            ['Development Economics', /develop|poverty|microfinanc|RCT|village|rural|household survey|welfare program|发展|贫困|农村|扶贫/i],
+            ['Political Economy', /politic|governance|institution|corruption|rent.seek|elect|vot|政治|治理|制度|腐败|选举/i],
+            ['Economic Growth', /./i],
+        ],
+        'R': [
+            ['Real Estate', /housing|real estate|house price|property|rent|住房|房地产|房价|租金|物业/i],
+            ['Urban Economics', /./i],
+        ],
+    };
+
+    const FIELD_NAMES = Object.assign({}, JEL_NAMES, {
+        'Q_env': 'Environmental Economics',
+        'Q_agr': 'Agricultural & Resource Economics',
+    });
+    const envRe = /environ|emission|pollution|carbon|climate|clean energy|renewable|green|sustainability|sustainable|CO2|greenhouse|biodiversity|conservation|deforestation|waste|recycl|toxic|hazardous|air quality|water quality|contamina|ecological|ecosystem|abatement|cap.and.trade|environmental regulation|环境|排放|污染|碳|气候|清洁能源|可再生|绿色|可持续|温室|生物多样性|保护|森林|废物|回收|有毒|生态/i;
+
+    // Step 1: Collect in-person papers
+    const inpersonPapers = PAPERS.filter(p => paperStates[p.id] === 'Accepted (In-Person)');
+
+    // Step 2: Identify organized session papers (from non-rejected ORG_SESSIONS)
+    const orgPaperIds = new Set();
+    const orgSessionList = [];
+    ORG_SESSIONS.forEach(org => {
+        if (org.rejected) return;
+        const sessPapers = [];
+        org.papers.forEach(op => {
+            if (paperStates[op.id] === 'Accepted (In-Person)') {
+                orgPaperIds.add(op.id);
+                const mainP = PAPERS.find(pp => pp.id === op.id);
+                sessPapers.push(mainP || op);
+            }
+        });
+        if (sessPapers.length > 0) {
+            // Classify topic for conflict avoidance
+            const nameLower = (org.session || '').toLowerCase();
+            let topic = 'other';
+            if (/platform|digital/.test(nameLower)) topic = 'digital_economy';
+            else if (/trade|tariff|international/.test(nameLower)) topic = 'trade';
+            else if (/urban|spatial|real estate|housing/.test(nameLower)) topic = 'urban';
+            else if (/labor|employment/.test(nameLower)) topic = 'labor';
+            else if (/health|medical/.test(nameLower)) topic = 'health';
+            else if (/financial|finance|credit/.test(nameLower)) topic = 'finance';
+            else if (/industrial|firm|productivity/.test(nameLower)) topic = 'industrial';
+            else if (/development|growth|technolog/.test(nameLower)) topic = 'development';
+            else if (/agricultur|smallholder|rural|farm/.test(nameLower)) topic = 'agriculture';
+            orgSessionList.push({
+                name: org.session,
+                organizer: org.organizer || '',
+                papers: sessPapers.map(p => ({ id: p.id, title: p.title, authors: p.authors, field: p.primaryField || '', fieldName: p.primaryFieldName || '' })),
+                isOrganized: true,
+                topicCategory: topic,
+            });
+        }
+    });
+
+    // Step 3: Group competitive papers by JEL field
+    const competitivePapers = inpersonPapers.filter(p => !orgPaperIds.has(p.id));
+    const fieldGroups = {};
+    competitivePapers.forEach(p => {
+        let field = p.primaryField || 'X';
+        if (field === 'Q') {
+            const text = (p.title || '') + ' ' + (p.abstract || '');
+            field = envRe.test(text) ? 'Q_env' : 'Q_agr';
+        }
+        if (!fieldGroups[field]) fieldGroups[field] = [];
+        fieldGroups[field].push(p);
+    });
+
+    // Step 4: Create competitive sessions with subtopic naming
+    const getText = (p) => (p.title || '') + ' ' + (p.abstract || '');
+    let competitiveSessions = [];
+
+    Object.keys(fieldGroups).sort((a, b) => fieldGroups[b].length - fieldGroups[a].length).forEach(field => {
+        const papers = fieldGroups[field];
+        const baseName = FIELD_NAMES[field] || field;
+        const rules = SUBTOPICS[field];
+
+        if (rules && papers.length >= PAPERS_PER_SESSION * 2) {
+            // Classify into subtopics
+            const subtopicGroups = {};
+            papers.forEach(p => {
+                const text = getText(p);
+                let matched = '_default';
+                for (const [topicName, pattern] of rules) {
+                    if (pattern.test(text)) { matched = topicName; break; }
+                }
+                if (!subtopicGroups[matched]) subtopicGroups[matched] = [];
+                subtopicGroups[matched].push(p);
+            });
+            Object.keys(subtopicGroups).sort((a, b) => subtopicGroups[b].length - subtopicGroups[a].length).forEach(st => {
+                const subPapers = subtopicGroups[st];
+                const name = st === '_default' ? baseName : st;
+                for (let i = 0; i < subPapers.length; i += PAPERS_PER_SESSION) {
+                    competitiveSessions.push({
+                        name: name,
+                        baseName: name,
+                        papers: subPapers.slice(i, i + PAPERS_PER_SESSION),
+                        topicCategory: field,
+                    });
+                }
+            });
+        } else {
+            for (let i = 0; i < papers.length; i += PAPERS_PER_SESSION) {
+                const chunk = papers.slice(i, i + PAPERS_PER_SESSION);
+                let sessionName = baseName;
+                if (rules) {
+                    const counts = {};
+                    for (const [topicName, pattern] of rules) {
+                        const cnt = chunk.filter(p => pattern.test(getText(p))).length;
+                        if (cnt > 0) counts[topicName] = cnt;
+                    }
+                    const best = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+                    if (best) sessionName = best;
+                }
+                competitiveSessions.push({
+                    name: sessionName,
+                    baseName: sessionName,
+                    papers: chunk,
+                    topicCategory: field,
+                });
+            }
+        }
+    });
+
+    // Deduplicate names: add numbering when name appears >1 time
+    const nameCounts = {};
+    competitiveSessions.forEach(s => { nameCounts[s.baseName] = (nameCounts[s.baseName] || 0) + 1; });
+    const nameCounters = {};
+    competitiveSessions.forEach(s => {
+        if (nameCounts[s.baseName] > 1) {
+            nameCounters[s.baseName] = (nameCounters[s.baseName] || 0) + 1;
+            s.name = s.baseName + ' (' + nameCounters[s.baseName] + ')';
+        }
+    });
+
+    // Merge small sessions (<3 papers)
+    const merged = [];
+    const leftover = [];
+    competitiveSessions.forEach(s => {
+        if (s.papers.length < 3) {
+            let found = false;
+            for (let j = merged.length - 1; j >= 0; j--) {
+                if (merged[j].topicCategory === s.topicCategory && merged[j].papers.length < 5) {
+                    merged[j].papers.push(...s.papers);
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) leftover.push(...s.papers.map(p => ({ paper: p, topic: s.topicCategory })));
+        } else {
+            merged.push(s);
+        }
+    });
+    leftover.forEach(item => {
+        const compat = merged.filter(s => s.topicCategory === item.topic && s.papers.length < 5);
+        if (compat.length > 0) {
+            compat.sort((a, b) => a.papers.length - b.papers.length)[0].papers.push(item.paper);
+        } else if (merged.length > 0) {
+            const smallest = merged.sort((a, b) => a.papers.length - b.papers.length)[0];
+            if (smallest.papers.length < 5) smallest.papers.push(item.paper);
+            else merged.push({ name: FIELD_NAMES[item.topic] || 'Applied Economics', papers: [item.paper], topicCategory: item.topic });
+        }
+    });
+    competitiveSessions = merged;
+
+    // Step 5: Distribute into slots A-F
+    const slotAssignments = {};
+    SLOTS.forEach(s => { slotAssignments[s] = []; });
+
+    // 5a: Organized sessions — spread by topic, avoid conflicts
+    const orgByTopic = {};
+    orgSessionList.forEach(os => {
+        if (!orgByTopic[os.topicCategory]) orgByTopic[os.topicCategory] = [];
+        orgByTopic[os.topicCategory].push(os);
+    });
+    Object.values(orgByTopic).forEach(sessions => {
+        sessions.forEach(os => {
+            // Find best slot: fewest sessions AND no same-topic overlap
+            const scored = SLOTS.map(slot => {
+                const existing = slotAssignments[slot].map(s => s.topicCategory);
+                const conflict = existing.includes(os.topicCategory) ? 1 : 0;
+                return { slot, conflict, count: slotAssignments[slot].length };
+            }).sort((a, b) => a.conflict - b.conflict || a.count - b.count);
+            const best = scored[0].slot;
+            slotAssignments[best].push({
+                slot: best,
+                room: slotAssignments[best].length + 1,
+                name: os.name,
+                organizer: os.organizer,
+                isOrganized: true,
+                papers: os.papers,
+                topicCategory: os.topicCategory,
+            });
+        });
+    });
+
+    // 5b: Competitive sessions — balance by count
+    // Shuffle for variety
+    for (let i = competitiveSessions.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [competitiveSessions[i], competitiveSessions[j]] = [competitiveSessions[j], competitiveSessions[i]];
+    }
+    competitiveSessions.forEach(cs => {
+        const best = SLOTS.reduce((a, b) => slotAssignments[a].length <= slotAssignments[b].length ? a : b);
+        slotAssignments[best].push({
+            slot: best,
+            room: slotAssignments[best].length + 1,
+            name: cs.name,
+            organizer: '',
+            isOrganized: false,
+            papers: cs.papers.map(p => ({ id: p.id, title: p.title, authors: p.authors, field: p.primaryField || '', fieldName: p.primaryFieldName || '' })),
+            topicCategory: cs.topicCategory,
+        });
+    });
+
+    // Re-number rooms within each slot
+    SLOTS.forEach(slot => {
+        slotAssignments[slot].forEach((sess, i) => { sess.room = i + 1; });
+    });
+
+    // Step 6: Build new SESSIONS array
+    const newSessions = [];
+    SLOTS.forEach(slot => {
+        slotAssignments[slot].forEach(sess => {
+            newSessions.push({
+                slot: sess.slot,
+                room: sess.room,
+                name: sess.name,
+                organizer: sess.organizer || '',
+                isOrganized: sess.isOrganized,
+                papers: sess.papers,
+            });
+        });
+    });
+
+    SESSIONS.length = 0;
+    newSessions.forEach(s => SESSIONS.push(s));
+
+    // Summary
+    const totalSess = SESSIONS.length;
+    const totalPapers = SESSIONS.reduce((a, s) => a + s.papers.length, 0);
+    const orgCount = SESSIONS.filter(s => s.isOrganized).length;
+    const slotSummary = SLOTS.map(s => `${s}: ${slotAssignments[s].length}`).join(', ');
+
+    logSessionChange('reassign', `Auto-arranged ${totalSess} sessions (${orgCount} organized, ${totalSess - orgCount} competitive) with ${totalPapers} papers. Slots: ${slotSummary}`);
+    renderSessions();
+    renderChangesTab();
+    updateSessionChangesBanner();
+
+    alert(`Sessions auto-arranged!\n\n${totalSess} sessions (${orgCount} organized, ${totalSess - orgCount} competitive)\n${totalPapers} papers assigned\n\nSlots: ${slotSummary}`);
 }
 
 // ============================================================
