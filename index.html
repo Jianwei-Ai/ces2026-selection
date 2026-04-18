@@ -2395,6 +2395,46 @@ function undoChange(index) {
 // ============================================================
 const ACCEPTED_STATUSES = new Set(['Accepted (In-Person)', 'Accepted (Online - PhD)']);
 
+function buildEmailTable(papers) {
+    const log = window.emailLog || {};
+    if (papers.length === 0) {
+        return '<p style="color:#a0aec0;font-size:13px;padding:6px 0 12px;">None in this category.</p>';
+    }
+    return `<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:4px;">
+        <thead>
+            <tr style="background:#f7fafc;border-bottom:2px solid #e2e8f0;">
+                <th style="padding:8px 6px;text-align:left;width:28px;"></th>
+                <th style="padding:8px 6px;text-align:left;">ID</th>
+                <th style="padding:8px 6px;text-align:left;">Title</th>
+                <th style="padding:8px 6px;text-align:left;">Presenter / Author</th>
+                <th style="padding:8px 6px;text-align:left;">Email</th>
+                <th style="padding:8px 6px;text-align:left;">Emailed</th>
+                <th style="padding:8px 6px;text-align:left;">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${papers.map(p => {
+                const entry = log[p.id];
+                const emailAddr = p.email || '';
+                const presenter = p.presenter || p.authors;
+                return `<tr style="border-bottom:1px solid #f0f0f0;${!entry ? 'background:#fffaf0;' : ''}">  
+                    <td style="padding:6px;"><input type="checkbox" class="email-select-cb" data-id="${p.id}" ${entry ? 'disabled' : ''}></td>
+                    <td style="padding:6px;color:#a0aec0;">#${p.id}</td>
+                    <td style="padding:6px;max-width:280px;"><span style="cursor:pointer;color:#2b6cb0;" onclick="showDetail(${p.id})">${escapeHtml(p.title.length > 60 ? p.title.substring(0,60)+'…' : p.title)}</span></td>
+                    <td style="padding:6px;">${escapeHtml(presenter.length > 30 ? presenter.substring(0,30)+'…' : presenter)}</td>
+                    <td style="padding:6px;font-family:monospace;font-size:12px;color:${emailAddr ? '#2d3748' : '#c53030'}">${emailAddr || '⚠️ no email'}</td>
+                    <td style="padding:6px;">${entry
+                        ? `<span style="color:#276749;font-weight:600;">✅ R${entry.round}</span><br><span style="font-size:11px;color:#a0aec0;">${entry.sentAt}</span>`
+                        : '<span style="color:#c53030;font-size:12px;">⚠️ Pending</span>'}</td>
+                    <td style="padding:6px;">${entry
+                        ? `<button class="btn" style="font-size:11px;padding:3px 8px;color:#c53030;background:#fff5f5;" onclick="unmarkEmailed(${p.id})">Undo R${entry.round}</button>`
+                        : `<button class="btn btn-success" style="font-size:11px;padding:3px 8px;" onclick="markOneEmailed(${p.id})">Mark emailed</button>`}</td>
+                </tr>`;
+            }).join('')}
+        </tbody>
+    </table>`;
+}
+
 function getEmailPendingPapers() {
     return PAPERS.filter(p => ACCEPTED_STATUSES.has(paperStates[p.id]) && !(window.emailLog || {})[p.id]);
 }
@@ -2455,61 +2495,52 @@ function renderEmailTracking() {
             : allAccepted;
     }
 
+    // ---- Pending: split into In-Person vs Online sections ----
+    if (filterVal === 'pending') {
+        const pIP = pending.filter(p => paperStates[p.id] === 'Accepted (In-Person)').sort((a,b) => a.id - b.id);
+        const pOL = pending.filter(p => paperStates[p.id] === 'Accepted (Online - PhD)').sort((a,b) => a.id - b.id);
+        if (pending.length === 0) {
+            document.getElementById('emailTrackingList').innerHTML = '<div class="empty-state"><p>&#x2705; All accepted papers have been emailed!</p></div>';
+            return;
+        }
+        document.getElementById('emailTrackingList').innerHTML =
+            `<div style="margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+                <label style="font-size:13px;color:#718096;">
+                    <input type="checkbox" id="selectAllEmail" onchange="toggleSelectAllEmail(this.checked)"> Select all visible
+                </label>
+                <span style="font-size:12px;color:#a0aec0;">(${pending.length} total pending)</span>
+            </div>
+            <div style="font-size:14px;font-weight:700;color:#276749;margin:4px 0 6px;padding:7px 14px;background:#f0fff4;border-left:4px solid #48bb78;border-radius:0 6px 6px 0;">
+                &#x1F3DB; In-Person &mdash; Pending Email (${pIP.length})
+            </div>
+            ${buildEmailTable(pIP)}
+            <div style="font-size:14px;font-weight:700;color:#2b6cb0;margin:16px 0 6px;padding:7px 14px;background:#ebf8ff;border-left:4px solid #4299e1;border-radius:0 6px 6px 0;">
+                &#x1F4BB; Online (PhD) &mdash; Pending Email (${pOL.length})
+            </div>
+            ${buildEmailTable(pOL)}`;
+        return;
+    }
+
+    // ---- Other filters: single table ----
     if (showPapers.length === 0) {
         document.getElementById('emailTrackingList').innerHTML = '<div class="empty-state"><p>No papers match this filter.</p></div>';
         return;
     }
 
-    // Sort: pending first, then by id
     showPapers = showPapers.slice().sort((a, b) => {
         const aEmailed = !!log[a.id], bEmailed = !!log[b.id];
         if (aEmailed !== bEmailed) return aEmailed ? 1 : -1;
         return a.id - b.id;
     });
 
-    document.getElementById('emailTrackingList').innerHTML = `
-        <div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;">
+    document.getElementById('emailTrackingList').innerHTML =
+        `<div style="margin-bottom:8px;display:flex;align-items:center;gap:8px;">
             <label style="font-size:13px;color:#718096;">
                 <input type="checkbox" id="selectAllEmail" onchange="toggleSelectAllEmail(this.checked)"> Select all visible
             </label>
             <span style="font-size:12px;color:#a0aec0;">(${showPapers.length} papers shown)</span>
         </div>
-        <table style="width:100%;border-collapse:collapse;font-size:13px;">
-            <thead>
-                <tr style="background:#f7fafc;border-bottom:2px solid #e2e8f0;">
-                    <th style="padding:8px 6px;text-align:left;width:28px;"></th>
-                    <th style="padding:8px 6px;text-align:left;">ID</th>
-                    <th style="padding:8px 6px;text-align:left;">Title</th>
-                    <th style="padding:8px 6px;text-align:left;">Presenter / Author</th>
-                    <th style="padding:8px 6px;text-align:left;">Email</th>
-                    <th style="padding:8px 6px;text-align:left;">Status</th>
-                    <th style="padding:8px 6px;text-align:left;">Emailed</th>
-                    <th style="padding:8px 6px;text-align:left;">Action</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${showPapers.map(p => {
-                    const entry = log[p.id];
-                    const st = paperStates[p.id];
-                    const emailAddr = p.email || '';
-                    const presenter = p.presenter || p.authors;
-                    return `<tr style="border-bottom:1px solid #f0f0f0;${!entry ? 'background:#fffaf0;' : ''}">
-                        <td style="padding:6px;"><input type="checkbox" class="email-select-cb" data-id="${p.id}" ${entry ? 'disabled' : ''}></td>
-                        <td style="padding:6px;color:#a0aec0;">#${p.id}</td>
-                        <td style="padding:6px;max-width:280px;"><span style="cursor:pointer;color:#2b6cb0;" onclick="showDetail(${p.id})">${escapeHtml(p.title.length > 60 ? p.title.substring(0,60)+'…' : p.title)}</span></td>
-                        <td style="padding:6px;">${escapeHtml(presenter.length > 30 ? presenter.substring(0,30)+'…' : presenter)}</td>
-                        <td style="padding:6px;font-family:monospace;font-size:12px;color:${emailAddr ? '#2d3748' : '#c53030'};">${emailAddr || '⚠️ no email'}</td>
-                        <td style="padding:6px;"><span style="font-size:11px;font-weight:600;color:${st === 'Accepted (In-Person)' ? '#276749' : '#2b6cb0'};">${st === 'Accepted (In-Person)' ? 'In-Person' : 'Online'}</span></td>
-                        <td style="padding:6px;">${entry
-                            ? `<span style="color:#276749;font-weight:600;">✅ R${entry.round}</span><br><span style="font-size:11px;color:#a0aec0;">${entry.sentAt}</span>`
-                            : '<span style="color:#c53030;font-size:12px;">⚠️ Pending</span>'}</td>
-                        <td style="padding:6px;">${entry
-                            ? `<button class="btn" style="font-size:11px;padding:3px 8px;color:#c53030;background:#fff5f5;" onclick="unmarkEmailed(${p.id})">Undo R${entry.round}</button>`
-                            : `<button class="btn btn-success" style="font-size:11px;padding:3px 8px;" onclick="markOneEmailed(${p.id})">Mark emailed</button>`}</td>
-                    </tr>`;
-                }).join('')}
-            </tbody>
-        </table>`;
+        ${buildEmailTable(showPapers)}`;
 }
 
 function toggleSelectAllEmail(checked) {
