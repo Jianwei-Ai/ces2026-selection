@@ -1028,7 +1028,7 @@ function renderPaperList(papers) {
                 ${(function(){
                     const log = (window.emailLog || {})[p.id];
                     const isAccepted = ['Accepted (In-Person)','Accepted (Online - PhD)'].includes(status);
-                    if (log) return `<span class="badge" style="background:#c6f6d5;color:#276749;font-weight:700;" title="Emailed ${log.sentAt}">📧 R${log.round}</span>`;
+                    if (log) return `<span class="badge" style="background:#c6f6d5;color:#276749;font-weight:700;" title="Emailed in Round ${log.round} (${log.sentAt})">📧 Emailed</span>`;
                     if (isAccepted) return `<span class="badge" style="background:#fff5f5;color:#c53030;font-weight:600;">⚠️ Not emailed</span>`;
                     return '';
                 })()}
