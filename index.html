@@ -385,6 +385,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
                     <option value="ip">&#x1F3DB; In-Person only</option>
                     <option value="ol">&#x1F4BB; Online (PhD) only</option>
                 </select>
+                <span id="emailViewRoundLabel" style="font-size:13px;color:#718096;">Round:</span>
                 <select id="emailViewRound" onchange="renderEmailTracking()" style="padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;">
                     <option value="0">All Rounds</option>
                     <option value="1">Round 1 only</option>
@@ -393,23 +394,33 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
                     <option value="4">Round 4 only</option>
                     <option value="5">Round 5 only</option>
                 </select>
+                <span id="emailRoundNANote" style="display:none;font-size:12px;color:#a0aec0;font-style:italic;">(Round N/A for pending)</span>
             </div>
             <!-- Action row -->
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
-                <span style="font-size:13px;color:#718096;">Mark selected as emailed in:</span>
-                <select id="emailRoundSelect" style="padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;">
-                    <option value="1">Round 1</option>
-                    <option value="2">Round 2</option>
-                    <option value="3">Round 3</option>
-                    <option value="4">Round 4</option>
-                    <option value="5">Round 5</option>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;background:#fff8ed;padding:10px 14px;border-radius:8px;border:1px solid #fbd38d;">
+                <span style="font-size:13px;font-weight:600;color:#744210;">Action:</span>
+                <span style="font-size:13px;color:#744210;">Mark selected as</span>
+                <select id="emailActionSelect" onchange="updateEmailActionUI()" style="padding:6px 10px;border:1px solid #fbd38d;border-radius:6px;font-size:13px;background:#fffbf0;">
+                    <option value="emailed">&#x2705; Emailed</option>
+                    <option value="pending">&#x21A9; Pending (undo)</option>
                 </select>
-                <button class="btn btn-success" onclick="markSelectedEmailed()">&#x2705; Mark Selected as Emailed</button>
+                <span id="emailActionRoundWrapper" style="display:flex;align-items:center;gap:6px;">
+                    <span style="font-size:13px;color:#744210;">in Round:</span>
+                    <select id="emailRoundSelect" style="padding:6px 10px;border:1px solid #fbd38d;border-radius:6px;font-size:13px;background:#fffbf0;">
+                        <option value="1">Round 1</option>
+                        <option value="2">Round 2</option>
+                        <option value="3">Round 3</option>
+                        <option value="4">Round 4</option>
+                        <option value="5">Round 5</option>
+                    </select>
+                </span>
+                <button class="btn btn-success" id="emailActionBtn" onclick="applyEmailAction()">&#x2705; Apply to Selected</button>
                 <button class="btn btn-primary" onclick="exportPendingEmailsCSV()" style="margin-left:auto;">&#x1F4E5; Export Pending Emails CSV</button>
             </div>
             <p style="font-size:13px;color:#718096;margin-bottom:12px;">
-                Papers without an email record are <strong>Pending</strong>. Use the <em>View</em> filters to switch between pending / emailed / by round.
-                Select checkboxes, choose a round number, then click <strong>Mark Selected as Emailed</strong>.
+                <strong>View</strong>: filter by Status / Type / Round &nbsp;&mdash;&nbsp;
+                <strong>Action</strong>: select checkboxes then choose Emailed or Pending(undo) and click Apply.
+                Round filter is only active when Status = Emailed or All.
             </p>
             <div id="emailSummaryBar" style="margin-bottom:16px;"></div>
             <div id="emailTrackingList"></div>
@@ -2442,11 +2453,61 @@ function getEmailPendingPapers() {
     return PAPERS.filter(p => ACCEPTED_STATUSES.has(paperStates[p.id]) && !(window.emailLog || {})[p.id]);
 }
 
+function updateEmailActionUI() {
+    const action = document.getElementById('emailActionSelect').value;
+    const rw = document.getElementById('emailActionRoundWrapper');
+    const btn = document.getElementById('emailActionBtn');
+    if (action === 'pending') {
+        rw.style.display = 'none';
+        btn.textContent = '↩ Mark as Pending (Undo)';
+        btn.className = 'btn';
+        btn.style.background = '#e53e3e';
+        btn.style.color = 'white';
+    } else {
+        rw.style.display = 'flex';
+        btn.textContent = '✅ Apply to Selected';
+        btn.className = 'btn btn-success';
+        btn.style.background = '';
+        btn.style.color = '';
+    }
+}
+
+function applyEmailAction() {
+    const action = document.getElementById('emailActionSelect').value;
+    if (action === 'pending') markSelectedPending();
+    else markSelectedEmailed();
+}
+
+function markSelectedPending() {
+    const selected = [...document.querySelectorAll('.email-select-cb:not(:disabled):checked')];
+    if (selected.length === 0) { alert('No papers selected. Check the boxes next to the papers you want to undo.'); return; }
+    if (!confirm(`Remove email records for ${selected.length} paper(s), marking them as Pending?`)) return;
+    if (!window.emailLog) window.emailLog = {};
+    selected.forEach(cb => { delete window.emailLog[parseInt(cb.dataset.id)]; });
+    firebaseSync.pushState();
+    renderEmailTracking();
+    applyFilters();
+}
+
 function renderEmailTracking() {
     const filterVal = document.getElementById('emailStatusFilter').value;
     const typeVal = document.getElementById('emailTypeFilter').value;
     const viewRound = parseInt(document.getElementById('emailViewRound').value) || 0;
     const log = window.emailLog || {};
+
+    // Disable view round when Status = pending (round has no meaning for un-emailed papers)
+    const roundSel = document.getElementById('emailViewRound');
+    const roundNote = document.getElementById('emailRoundNANote');
+    if (filterVal === 'pending') {
+        roundSel.disabled = true;
+        roundSel.style.opacity = '0.4';
+        roundSel.value = '0';
+        if (roundNote) roundNote.style.display = 'inline';
+    } else {
+        roundSel.disabled = false;
+        roundSel.style.opacity = '1';
+        if (roundNote) roundNote.style.display = 'none';
+    }
 
     // All accepted papers
     let allAccepted = PAPERS.filter(p => ACCEPTED_STATUSES.has(paperStates[p.id]));
