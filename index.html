@@ -28,6 +28,18 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
     transition: all 0.15s;
 }
 .login-btn:hover { background: #2b6cb0; color: white; border-color: #2b6cb0; }
+.role-card {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    width: 180px; padding: 32px 20px; border-radius: 14px; border: 3px solid #e2e8f0;
+    background: white; cursor: pointer; transition: all 0.18s; text-align: center;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}
+.role-card:hover { transform: translateY(-4px); box-shadow: 0 10px 32px rgba(0,0,0,0.15); }
+.role-card.organizer:hover { border-color: #2b6cb0; }
+.role-card.committee:hover { border-color: #276749; }
+.role-card .role-icon { font-size: 48px; margin-bottom: 14px; }
+.role-card .role-title { font-size: 17px; font-weight: 700; color: #1a365d; margin-bottom: 6px; }
+.role-card .role-desc { font-size: 12px; color: #718096; line-height: 1.5; }
 
 .header {
     background: linear-gradient(135deg, #1a365d 0%, #2b6cb0 100%);
@@ -245,6 +257,40 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 </head>
 <body>
+
+<!-- Role Selection Overlay (shown first) -->
+<div class="login-overlay" id="roleOverlay">
+    <div class="login-box" style="max-width:520px;">
+        <h1>CES 2026 China Conference</h1>
+        <p style="margin-bottom:32px;">Please select your role to continue.</p>
+        <div style="display:flex;gap:24px;justify-content:center;flex-wrap:wrap;">
+            <div class="role-card organizer" onclick="selectRole('organizer')">
+                <div class="role-icon">&#x1F4CB;</div>
+                <div class="role-title">Organizer</div>
+                <div class="role-desc">Paper review, status decisions, session planning &amp; email tracking</div>
+            </div>
+            <div class="role-card committee" onclick="selectRole('committee')">
+                <div class="role-icon">&#x1F3C6;</div>
+                <div class="role-title">Committee</div>
+                <div class="role-desc">Best Paper &amp; Best Student Paper award selection</div>
+            </div>
+        </div>
+        <p style="margin-top:28px;font-size:12px;color:#a0aec0;">Your role choice will be remembered for this browser.</p>
+    </div>
+</div>
+
+<!-- Committee Placeholder Page -->
+<div id="committeePage" style="display:none;min-height:100vh;background:linear-gradient(135deg,#1a365d 0%,#276749 100%);display:none;align-items:center;justify-content:center;flex-direction:column;">
+    <div style="background:white;border-radius:16px;padding:48px 40px;max-width:560px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+        <div style="font-size:64px;margin-bottom:16px;">&#x1F3C6;</div>
+        <h1 style="font-size:24px;color:#1a365d;margin-bottom:10px;">Best Paper Award — Committee Portal</h1>
+        <p style="color:#718096;font-size:15px;margin-bottom:28px;">The accepted paper list will be available here once the program is finalized. Please check back later.</p>
+        <div style="background:#f0fff4;border:1px solid #9ae6b4;border-radius:10px;padding:16px;font-size:14px;color:#276749;margin-bottom:28px;">
+            &#x23F3; Coming soon &mdash; the organizers will notify you when this portal is ready.
+        </div>
+        <button onclick="switchToOrganizer()" style="padding:10px 24px;border-radius:8px;border:2px solid #e2e8f0;background:#f7fafc;font-size:14px;font-weight:600;color:#4a5568;cursor:pointer;">&#x2190; Back to Role Selection</button>
+    </div>
+</div>
 
 <!-- Login Overlay -->
 <div class="login-overlay" id="loginOverlay">
@@ -621,6 +667,46 @@ let paperStates = {};  // id -> current status
 window.paperEdits = {};  // id -> {title, authors, coauthors, affiliation, jelCodes, presenter, email, note}
 window.emailLog = {};  // id -> {round, sentAt, type} — tracks which papers have been emailed
 let currentUser = localStorage.getItem('ces2026_user') || '';
+let currentRole = localStorage.getItem('ces2026_role') || '';
+
+// ---- Role selection ----
+function selectRole(role) {
+    currentRole = role;
+    localStorage.setItem('ces2026_role', role);
+    document.getElementById('roleOverlay').style.display = 'none';
+    if (role === 'committee') {
+        document.getElementById('committeePage').style.display = 'flex';
+    } else {
+        // organizer: show login if not already logged in
+        if (!currentUser) {
+            document.getElementById('loginOverlay').style.display = 'flex';
+        }
+    }
+}
+
+function switchToOrganizer() {
+    localStorage.removeItem('ces2026_role');
+    currentRole = '';
+    document.getElementById('committeePage').style.display = 'none';
+    document.getElementById('roleOverlay').style.display = 'flex';
+}
+
+// ---- Role gate on load ----
+(function applyRoleOnLoad() {
+    if (!currentRole) {
+        // No role chosen yet — show role selection, hide everything else
+        document.getElementById('roleOverlay').style.display = 'flex';
+        document.getElementById('loginOverlay').style.display = 'none';
+    } else if (currentRole === 'committee') {
+        document.getElementById('roleOverlay').style.display = 'none';
+        document.getElementById('loginOverlay').style.display = 'none';
+        document.getElementById('committeePage').style.display = 'flex';
+    } else {
+        // organizer
+        document.getElementById('roleOverlay').style.display = 'none';
+        // loginOverlay will be handled by existing auto-login logic below
+    }
+})();
 
 // Login/logout
 function doLogin(name) {
@@ -644,8 +730,12 @@ function doLogout() {
     }
     currentUser = '';
     localStorage.removeItem('ces2026_user');
-    document.getElementById('loginOverlay').style.display = 'flex';
+    localStorage.removeItem('ces2026_role');
+    currentRole = '';
     document.getElementById('userBadge').style.display = 'none';
+    document.getElementById('loginOverlay').style.display = 'none';
+    document.getElementById('committeePage').style.display = 'none';
+    document.getElementById('roleOverlay').style.display = 'flex';
 }
 
 // Auto-login if previously logged in
