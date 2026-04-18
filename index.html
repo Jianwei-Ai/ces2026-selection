@@ -467,10 +467,19 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
             <input type="text" id="editPaperJEL" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;">
         </div>
         <div style="margin:12px 0;">
+            <label style="display:block;font-size:13px;color:#718096;margin-bottom:4px;">Presenter (first author / speaker)</label>
+            <input type="text" id="editPaperPresenter" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;">
+        </div>
+        <div style="margin:12px 0;">
+            <label style="display:block;font-size:13px;color:#718096;margin-bottom:4px;">Email</label>
+            <input type="email" id="editPaperEmail" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;">
+        </div>
+        <div style="margin:12px 0;">
             <label style="display:block;font-size:13px;color:#718096;margin-bottom:4px;">Note</label>
             <textarea id="editPaperNote" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;height:60px;"></textarea>
         </div>
         <div style="text-align:right;margin-top:16px;">
+            <button class="btn btn-danger" onclick="deletePaper(parseInt(document.getElementById('editPaperId').value))" style="margin-right:auto;background:#fff5f5;color:#c53030;border:1px solid #fc8181;">🗑️ Delete Paper</button>
             <button class="btn" onclick="document.getElementById('editPaperModal').classList.remove('visible')">Cancel</button>
             <button class="btn btn-primary" onclick="saveEditPaper()" style="margin-left:8px;">Save Changes</button>
         </div>
@@ -513,6 +522,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
             <input type="text" id="addPaperOrgSession" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;">
         </div>
         <div style="margin:12px 0;">
+            <label style="display:block;font-size:13px;color:#718096;margin-bottom:4px;">Presenter (first author / speaker)</label>
+            <input type="text" id="addPaperPresenter" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;">
+        </div>
+        <div style="margin:12px 0;">
+            <label style="display:block;font-size:13px;color:#718096;margin-bottom:4px;">Email</label>
+            <input type="email" id="addPaperEmail" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;">
+        </div>
+        <div style="margin:12px 0;">
             <label style="display:block;font-size:13px;color:#718096;margin-bottom:4px;">Note</label>
             <textarea id="addPaperNote" style="width:100%;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px;height:60px;"></textarea>
         </div>
@@ -544,6 +561,7 @@ let currentPage = 1;
 let PAGE_SIZE = 9999;
 let changes = []; // {id, from, to, timestamp, user}
 let paperStates = {};  // id -> current status
+window.paperEdits = {};  // id -> {title, authors, coauthors, affiliation, jelCodes, presenter, email, note}
 let currentUser = localStorage.getItem('ces2026_user') || '';
 
 // Login/logout
@@ -640,6 +658,14 @@ const firebaseSync = {
                         paperStates[id] = data.paperStates[id];
                     });
                 }
+                if (data.paperEdits) {
+                    window.paperEdits = data.paperEdits;
+                    // Apply edits to PAPERS so they show up immediately
+                    Object.keys(data.paperEdits).forEach(id => {
+                        const p = PAPERS.find(x => x.id === parseInt(id));
+                        if (p) Object.assign(p, data.paperEdits[id]);
+                    });
+                }
                 if (data.changes) {
                     changes.length = 0;
                     data.changes.forEach(c => changes.push(c));
@@ -678,6 +704,13 @@ const firebaseSync = {
                     paperStates[id] = data.paperStates[id];
                 });
             }
+            if (data.paperEdits) {
+                window.paperEdits = data.paperEdits;
+                Object.keys(data.paperEdits).forEach(id => {
+                    const p = PAPERS.find(x => x.id === parseInt(id));
+                    if (p) Object.assign(p, data.paperEdits[id]);
+                });
+            }
             if (data.changes) {
                 changes.length = 0;
                 data.changes.forEach(c => changes.push(c));
@@ -713,6 +746,7 @@ const firebaseSync = {
         _syncDebounceTimer = setTimeout(() => {
             const stateData = {
                 paperStates: { ...paperStates },
+                paperEdits: { ...(window.paperEdits || {}) },
                 changes: changes.slice(),
                 orgSessions: ORG_SESSIONS.map(s => ({...s})),
                 sessions: SESSIONS.map(s => ({...s})),
@@ -2351,6 +2385,8 @@ function openEditPaper(id) {
     document.getElementById('editPaperCoauthors').value = p.coauthors || '';
     document.getElementById('editPaperAffiliation').value = p.affiliation || '';
     document.getElementById('editPaperJEL').value = p.jelCodes || '';
+    document.getElementById('editPaperPresenter').value = p.presenter || p.authors || '';
+    document.getElementById('editPaperEmail').value = p.email || '';
     document.getElementById('editPaperNote').value = p.note || '';
     document.getElementById('editPaperModal').classList.add('visible');
 }
@@ -2363,6 +2399,8 @@ function saveEditPaper() {
     const newCoauthors = document.getElementById('editPaperCoauthors').value.trim();
     const newAff = document.getElementById('editPaperAffiliation').value.trim();
     const newJEL = document.getElementById('editPaperJEL').value.trim();
+    const newPresenter = document.getElementById('editPaperPresenter').value.trim();
+    const newEmail = document.getElementById('editPaperEmail').value.trim();
     const newNote = document.getElementById('editPaperNote').value.trim();
 
     // Track changes
@@ -2372,6 +2410,8 @@ function saveEditPaper() {
     if ((p.coauthors || '') !== newCoauthors) edited.push(`coauthors changed`);
     if ((p.affiliation || '') !== newAff) edited.push(`affiliation changed`);
     if ((p.jelCodes || '') !== newJEL) edited.push(`JEL changed`);
+    if ((p.presenter || '') !== newPresenter) edited.push(`presenter: "${p.presenter || ''}" → "${newPresenter}"`);
+    if ((p.email || '') !== newEmail) edited.push(`email changed`);
     if ((p.note || '') !== newNote) edited.push(`note changed`);
 
     if (edited.length > 0) {
@@ -2380,7 +2420,17 @@ function saveEditPaper() {
         p.coauthors = newCoauthors;
         p.affiliation = newAff;
         p.jelCodes = newJEL;
+        p.presenter = newPresenter;
+        p.email = newEmail;
         p.note = newNote;
+
+        // Persist edits so they survive page reload
+        if (!window.paperEdits) window.paperEdits = {};
+        window.paperEdits[id] = {
+            title: newTitle, authors: newAuthors, coauthors: newCoauthors,
+            affiliation: newAff, jelCodes: newJEL, presenter: newPresenter,
+            email: newEmail, note: newNote
+        };
 
         changes.push({
             id: p.id,
@@ -2392,12 +2442,47 @@ function saveEditPaper() {
         });
         document.getElementById('changeCount').textContent = changes.length;
         updateChangesBanner();
+        firebaseSync.pushState();  // auto-save to Firebase
     }
 
     document.getElementById('editPaperModal').classList.remove('visible');
     document.getElementById('detailModal').classList.remove('visible');
     applyFilters();
     renderOrganizedSessions();
+}
+
+// ============================================================
+// DELETE PAPER
+// ============================================================
+function deletePaper(id) {
+    const p = PAPERS.find(x => x.id === id);
+    if (!p) return;
+    if (!confirm(`Delete paper #${id}: "${p.title}"?\n\nThis cannot be undone.`)) return;
+
+    const idx = PAPERS.findIndex(x => x.id === id);
+    PAPERS.splice(idx, 1);
+    delete paperStates[id];
+
+    ORG_SESSIONS.forEach(s => { s.papers = (s.papers || []).filter(pp => pp.id !== id); });
+    SESSIONS.forEach(s => { s.papers = (s.papers || []).filter(pp => pp.id !== id); });
+
+    changes.push({
+        id: id,
+        title: (p.title || '').substring(0, 50),
+        from: 'Deleted',
+        to: 'Removed from portal',
+        timestamp: new Date().toLocaleString(),
+        user: currentUser || 'Unknown'
+    });
+    document.getElementById('changeCount').textContent = changes.length;
+    updateChangesBanner();
+    document.getElementById('editPaperModal').classList.remove('visible');
+    document.getElementById('detailModal').classList.remove('visible');
+    firebaseSync.pushState();
+    renderStats();
+    applyFilters();
+    renderOrganizedSessions();
+    alert(`Paper #${id} deleted.`);
 }
 
 // ============================================================
@@ -2410,6 +2495,8 @@ function openAddPaper() {
     document.getElementById('addPaperJEL').value = '';
     document.getElementById('addPaperStatus').value = 'Accepted (In-Person)';
     document.getElementById('addPaperOrgSession').value = '';
+    document.getElementById('addPaperPresenter').value = '';
+    document.getElementById('addPaperEmail').value = '';
     document.getElementById('addPaperNote').value = '';
     document.getElementById('addPaperModal').classList.add('visible');
 }
@@ -2425,6 +2512,8 @@ function saveAddPaper() {
     const jelStr = document.getElementById('addPaperJEL').value.trim();
     const status = document.getElementById('addPaperStatus').value;
     const orgSession = document.getElementById('addPaperOrgSession').value.trim();
+    const presenter = document.getElementById('addPaperPresenter').value.trim();
+    const email = document.getElementById('addPaperEmail').value.trim();
     const note = document.getElementById('addPaperNote').value.trim();
 
     // Generate new ID (max + 1)
@@ -2456,6 +2545,8 @@ function saveAddPaper() {
         prefersOnline: false,
         language: 'English',
         keywords: '',
+        presenter: presenter || authors,
+        email: email,
         note: note || 'Manually added',
         score: 0,
         abstractQuality: 0,
@@ -2493,6 +2584,7 @@ function saveAddPaper() {
     });
     document.getElementById('changeCount').textContent = changes.length;
     updateChangesBanner();
+    firebaseSync.pushState();  // auto-save to Firebase
 
     document.getElementById('addPaperModal').classList.remove('visible');
     renderStats();
@@ -2596,10 +2688,10 @@ function closeExportModal() {
 }
 
 function downloadCSV() {
-    let csv = 'ID,Title,Authors,Co-authors,Affiliation,JobTitle,Email,JEL Codes,Keywords,Language,Has Paper,PhD Student,Status,Session Slot,Session Room,Session Name,Note\n';
+    let csv = 'ID,Title,Authors,Co-authors,Affiliation,JobTitle,Presenter,Email,JEL Codes,Keywords,Language,Has Paper,PhD Student,Status,Session Slot,Session Room,Session Name,IsOrganized,OrgSession,OrgOrganizer,Note\n';
     PAPERS.forEach(p => {
         const status = paperStates[p.id];
-        // Find current session for this paper
+        // Find current program session for this paper
         let sessSlot = '', sessRoom = '', sessName = '';
         SESSIONS.forEach(s => {
             if (s.papers.some(sp => sp.id === p.id)) {
@@ -2608,6 +2700,18 @@ function downloadCSV() {
                 sessName = s.name;
             }
         });
+        // Find organized session info
+        let isOrg = 'No', orgSessName = '', orgOrganizerName = '';
+        if (p.isOrganized || p.organizedSession) {
+            isOrg = 'Yes';
+            orgSessName = p.organizedSession || '';
+            orgOrganizerName = p.organizedOrganizer || '';
+            // Try to get organizer from ORG_SESSIONS if not set on paper
+            if (!orgOrganizerName && orgSessName) {
+                const orgEntry = ORG_SESSIONS.find(o => o.session === orgSessName);
+                if (orgEntry) orgOrganizerName = orgEntry.organizer || '';
+            }
+        }
         const row = [
             p.id,
             '"' + p.title.replace(/"/g, '""') + '"',
@@ -2615,6 +2719,7 @@ function downloadCSV() {
             '"' + (p.coauthors || '').replace(/"/g, '""') + '"',
             '"' + (p.affiliation || '').replace(/"/g, '""') + '"',
             '"' + (p.jobTitle || '').replace(/"/g, '""') + '"',
+            '"' + (p.presenter || p.authors || '').replace(/"/g, '""') + '"',
             '"' + (p.email || '').replace(/"/g, '""') + '"',
             '"' + p.jelCodes.replace(/"/g, '""') + '"',
             '"' + (p.keywords || '').replace(/"/g, '""') + '"',
@@ -2625,6 +2730,9 @@ function downloadCSV() {
             sessSlot,
             sessRoom,
             '"' + sessName.replace(/"/g, '""') + '"',
+            isOrg,
+            '"' + orgSessName.replace(/"/g, '""') + '"',
+            '"' + orgOrganizerName.replace(/"/g, '""') + '"',
             '"' + (p.note || '').replace(/"/g, '""') + '"'
         ].join(',');
         csv += row + '\n';
