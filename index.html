@@ -2410,7 +2410,7 @@ function renderEmailTracking() {
     const emailed = allAccepted.filter(p => !!log[p.id]);
 
     // Summary bar
-    const maxRound = Math.max(0, ...Object.values(log).map(l => l.round || 0));
+    const maxRound = Math.max(0, ...Object.values(log).map(l => Number(l.round) || 0));
     let summaryHtml = `
         <div style="background:#f7fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 16px;font-size:13px;">
             Total accepted: <strong>${allAccepted.length}</strong> &nbsp;|&nbsp;
@@ -2422,7 +2422,7 @@ function renderEmailTracking() {
     if (maxRound > 0) {
         summaryHtml += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">';
         for (let r = 1; r <= maxRound; r++) {
-            const rPapers = Object.entries(log).filter(([,l]) => l.round === r);
+            const rPapers = Object.entries(log).filter(([,l]) => Number(l.round) === r);
             const rDate = rPapers.length > 0 ? rPapers[0][1].sentAt : '';
             summaryHtml += `<div style="background:#ebf8ff;border:1px solid #bee3f8;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;"
                 onclick="filterToRound(${r})" title="Click to view Round ${r} papers">
@@ -2434,21 +2434,24 @@ function renderEmailTracking() {
     document.getElementById('emailSummaryBar').innerHTML = summaryHtml;
 
     // Filter papers to show
+    // When viewRound > 0, show ONLY papers emailed in that round (no pending papers mixed in)
     let showPapers;
     if (filterVal === 'pending') {
         showPapers = pending;  // round filter not applicable to pending
     } else if (filterVal === 'emailed') {
-        showPapers = viewRound > 0 ? emailed.filter(p => log[p.id] && log[p.id].round === viewRound) : emailed;
+        showPapers = viewRound > 0
+            ? emailed.filter(p => log[p.id] && Number(log[p.id].round) === viewRound)
+            : emailed;
     } else if (filterVal === 'Accepted (In-Person)') {
         showPapers = allAccepted.filter(p => paperStates[p.id] === 'Accepted (In-Person)');
-        if (viewRound > 0) showPapers = showPapers.filter(p => !log[p.id] || log[p.id].round === viewRound);
+        if (viewRound > 0) showPapers = showPapers.filter(p => log[p.id] && Number(log[p.id].round) === viewRound);
     } else if (filterVal === 'Accepted (Online - PhD)') {
         showPapers = allAccepted.filter(p => paperStates[p.id] === 'Accepted (Online - PhD)');
-        if (viewRound > 0) showPapers = showPapers.filter(p => !log[p.id] || log[p.id].round === viewRound);
+        if (viewRound > 0) showPapers = showPapers.filter(p => log[p.id] && Number(log[p.id].round) === viewRound);
     } else {
         // all
         showPapers = viewRound > 0
-            ? allAccepted.filter(p => !log[p.id] || log[p.id].round === viewRound)
+            ? allAccepted.filter(p => log[p.id] && Number(log[p.id].round) === viewRound)
             : allAccepted;
     }
 
