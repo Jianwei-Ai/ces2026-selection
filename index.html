@@ -725,6 +725,8 @@ function doLogin(name) {
     document.getElementById('currentUserDisplay').textContent = name;
     init();
 }
+
+function doLogout() {
     // Remove presence from Firebase
     if (currentUser) {
         db.ref('presence/' + encodeURIComponent(currentUser)).remove();
