@@ -1275,7 +1275,7 @@ function switchTab(tab) {
 }
 
 // ============================================================
-// SHARED NOTES
+// SHARED NOTES (threaded)
 // ============================================================
 function postNote() {
     const text = document.getElementById('newNoteText').value.trim();
@@ -1284,42 +1284,117 @@ function postNote() {
         id: Date.now(),
         text,
         author: currentUser || 'Unknown',
-        timestamp: new Date().toLocaleString('en-US', {year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})
+        timestamp: new Date().toLocaleString('en-US', {year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}),
+        parentId: null
     };
     if (!window.sharedNotes) window.sharedNotes = [];
-    window.sharedNotes.unshift(note);
+    window.sharedNotes.push(note);
     document.getElementById('newNoteText').value = '';
     firebaseSync.pushState();
     renderNotes();
 }
 
-function deleteNote(id) {
-    if (!confirm('Delete this note?')) return;
-    window.sharedNotes = (window.sharedNotes || []).filter(n => n.id !== id);
+function postReply(parentId) {
+    const ta = document.getElementById('replyText_' + parentId);
+    const text = ta ? ta.value.trim() : '';
+    if (!text) { alert('Please write something before replying.'); return; }
+    const reply = {
+        id: Date.now(),
+        text,
+        author: currentUser || 'Unknown',
+        timestamp: new Date().toLocaleString('en-US', {year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}),
+        parentId: parentId
+    };
+    if (!window.sharedNotes) window.sharedNotes = [];
+    window.sharedNotes.push(reply);
     firebaseSync.pushState();
     renderNotes();
+}
+
+function deleteNote(id) {
+    if (!confirm('Delete this comment and all its replies?')) return;
+    // Recursively collect all descendant ids
+    function collectIds(targetId) {
+        const ids = [targetId];
+        (window.sharedNotes || []).filter(n => n.parentId === targetId).forEach(child => {
+            collectIds(child.id).forEach(cid => ids.push(cid));
+        });
+        return ids;
+    }
+    const toDelete = new Set(collectIds(id));
+    window.sharedNotes = (window.sharedNotes || []).filter(n => !toDelete.has(n.id));
+    firebaseSync.pushState();
+    renderNotes();
+}
+
+function toggleReplyBox(id) {
+    const box = document.getElementById('replyBox_' + id);
+    if (!box) return;
+    const visible = box.style.display !== 'none';
+    box.style.display = visible ? 'none' : 'block';
+    if (!visible) document.getElementById('replyText_' + id).focus();
+}
+
+function buildNoteTree(notes) {
+    const map = {};
+    const roots = [];
+    // Sort all notes oldest-first so threads read top-to-bottom
+    const sorted = (notes || []).slice().sort((a, b) => a.id - b.id);
+    sorted.forEach(n => { map[n.id] = {...n, children: []}; });
+    sorted.forEach(n => {
+        if (n.parentId && map[n.parentId]) {
+            map[n.parentId].children.push(map[n.id]);
+        } else {
+            roots.push(map[n.id]);
+        }
+    });
+    return roots;
+}
+
+function renderNoteNode(node, depth) {
+    const ml = Math.min(depth * 28, 112);  // max 4 levels of visual indent
+    const isOwn = node.author === currentUser;
+    const avatarColors = ['#4299e1','#48bb78','#ed8936','#9f7aea','#f56565','#38b2ac'];
+    const color = avatarColors[Math.abs(node.author.charCodeAt(0) + (node.author.charCodeAt(1)||0)) % avatarColors.length];
+    const initial = (node.author || '?')[0].toUpperCase();
+    const borderLeft = depth > 0 ? 'border-left:2px solid #e2e8f0;' : '';
+    const children = node.children.map(c => renderNoteNode(c, depth + 1)).join('');
+    return `
+    <div style="margin-left:${ml}px;${borderLeft}padding-left:${depth>0?12:0}px;margin-bottom:${depth===0?14:8}px;">
+        <div style="background:white;border:1px solid ${depth===0?'#e2e8f0':'#edf2f7'};border-radius:10px;padding:12px 16px;box-shadow:${depth===0?'0 1px 4px rgba(0,0,0,0.05)':'none'};">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <div style="width:28px;height:28px;border-radius:50%;background:${color};color:white;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;">${initial}</div>
+                    <strong style="font-size:13px;color:#2d3748;">${node.author}</strong>
+                    <span style="font-size:11px;color:#a0aec0;">${node.timestamp}</span>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <button onclick="toggleReplyBox(${node.id})" style="background:none;border:none;color:#4299e1;cursor:pointer;font-size:12px;padding:2px 6px;border-radius:4px;border:1px solid #bee3f8;">&#x21A9; Reply</button>
+                    ${isOwn ? `<button onclick="deleteNote(${node.id})" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:12px;padding:0;" title="Delete">&#x1F5D1;</button>` : ''}
+                </div>
+            </div>
+            <div style="font-size:14px;color:#4a5568;white-space:pre-wrap;line-height:1.6;padding-left:36px;">${node.text}</div>
+            <div id="replyBox_${node.id}" style="display:none;margin-top:10px;padding-left:36px;">
+                <textarea id="replyText_${node.id}" rows="2" placeholder="Write a reply..." style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;resize:vertical;font-family:inherit;box-sizing:border-box;"></textarea>
+                <div style="display:flex;gap:8px;margin-top:6px;">
+                    <button class="btn btn-success" onclick="postReply(${node.id})" style="font-size:12px;padding:5px 14px;">Post Reply</button>
+                    <button class="btn" onclick="toggleReplyBox(${node.id})" style="font-size:12px;padding:5px 14px;">Cancel</button>
+                </div>
+            </div>
+        </div>
+        ${children}
+    </div>`;
 }
 
 function renderNotes() {
     const el = document.getElementById('notesList');
     if (!el) return;
-    const notes = window.sharedNotes || [];
-    if (notes.length === 0) {
+    const roots = buildNoteTree(window.sharedNotes || []);
+    if (roots.length === 0) {
         el.innerHTML = '<div style="text-align:center;padding:40px;color:#a0aec0;font-size:14px;">No notes yet. Be the first to post one!</div>';
         return;
     }
-    el.innerHTML = notes.map(n => `
-        <div style="background:white;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
-                <div>
-                    <strong style="font-size:13px;color:#2d3748;">&#x1F464; ${n.author}</strong>
-                    <span style="font-size:12px;color:#a0aec0;margin-left:10px;">${n.timestamp}</span>
-                </div>
-                ${n.author === currentUser ? `<button onclick="deleteNote(${n.id})" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:13px;padding:0;" title="Delete note">&#x1F5D1;</button>` : ''}
-            </div>
-            <div style="font-size:14px;color:#4a5568;white-space:pre-wrap;line-height:1.6;">${n.text}</div>
-        </div>`
-    ).join('');
+    el.innerHTML = roots.map(n => renderNoteNode(n, 0)).join('');
 }
 
 // ============================================================
