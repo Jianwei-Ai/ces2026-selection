@@ -362,6 +362,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
             <div class="tab" data-tab="sessions" onclick="switchTab('sessions')">Program Sessions</div>
             <div class="tab" data-tab="changes" onclick="switchTab('changes')">Changes</div>
             <div class="tab" data-tab="email-tracking" onclick="switchTab('email-tracking')">&#x1F4E7; Email Tracking</div>
+            <div class="tab" data-tab="notes" onclick="switchTab('notes')">&#x1F4DD; Notes</div>
         </div>
 
         <div class="changes-banner" id="changesBanner">
@@ -419,8 +420,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
         </div>
 
         <div id="tabEmailTracking" style="display:none;">
-            <h2 style="font-size:18px;margin:0 0 12px;">&#x1F4E7; Email Tracking</h2>
-            <!-- Filter row -->
             <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;background:#f7fafc;padding:10px 14px;border-radius:8px;border:1px solid #e2e8f0;">
                 <span style="font-size:13px;font-weight:600;color:#4a5568;">View:</span>
                 <select id="emailStatusFilter" onchange="renderEmailTracking()" style="padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;">
@@ -472,6 +471,16 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
             </p>
             <div id="emailSummaryBar" style="margin-bottom:16px;"></div>
             <div id="emailTrackingList"></div>
+        </div>
+
+        <div id="tabNotes" style="display:none;">
+            <h2 style="font-size:18px;margin:0 0 16px;">&#x1F4DD; Shared Notes</h2>
+            <div style="display:flex;gap:12px;margin-bottom:20px;align-items:flex-start;">
+                <textarea id="newNoteText" placeholder="Write a note visible to all organizers..." rows="3"
+                    style="flex:1;padding:10px 14px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;resize:vertical;font-family:inherit;"></textarea>
+                <button class="btn btn-success" onclick="postNote()" style="white-space:nowrap;padding:10px 20px;">&#x1F4E4; Post Note</button>
+            </div>
+            <div id="notesList"></div>
         </div>
 
         <div id="tabSessions" style="display:none;">
@@ -668,6 +677,7 @@ let changes = []; // {id, from, to, timestamp, user}
 let paperStates = {};  // id -> current status
 window.paperEdits = {};  // id -> {title, authors, coauthors, affiliation, jelCodes, presenter, email, note}
 window.emailLog = {};  // id -> {round, sentAt, type} — tracks which papers have been emailed
+window.sharedNotes = [];  // {id, text, author, timestamp}
 let currentUser = localStorage.getItem('ces2026_user') || '';
 let currentRole = localStorage.getItem('ces2026_role') || '';
 
@@ -820,12 +830,10 @@ const firebaseSync = {
                 if (data.emailLog) {
                     window.emailLog = data.emailLog;
                 }
-                if (data.changes) {
-                    changes.length = 0;
-                    data.changes.forEach(c => changes.push(c));
-                    document.getElementById('changeCount').textContent = changes.length;
+                if (data.sharedNotes) {
+                    window.sharedNotes = data.sharedNotes;
                 }
-                if (data.orgSessions) {
+                if (data.changes) {
                     ORG_SESSIONS.length = 0;
                     data.orgSessions.forEach(s => ORG_SESSIONS.push(s));
                 }
@@ -868,12 +876,11 @@ const firebaseSync = {
             if (data.emailLog) {
                 window.emailLog = data.emailLog;
             }
-            if (data.changes) {
-                changes.length = 0;
-                data.changes.forEach(c => changes.push(c));
-                document.getElementById('changeCount').textContent = changes.length;
+            if (data.sharedNotes) {
+                window.sharedNotes = data.sharedNotes;
+                renderNotes();
             }
-            if (data.orgSessions) {
+            if (data.changes) {
                 ORG_SESSIONS.length = 0;
                 data.orgSessions.forEach(s => ORG_SESSIONS.push(s));
             }
@@ -905,6 +912,7 @@ const firebaseSync = {
                 paperStates: { ...paperStates },
                 paperEdits: { ...(window.paperEdits || {}) },
                 emailLog: { ...(window.emailLog || {}) },
+                sharedNotes: (window.sharedNotes || []).slice(),
                 changes: changes.slice(),
                 orgSessions: ORG_SESSIONS.map(s => ({...s})),
                 sessions: SESSIONS.map(s => ({...s})),
@@ -1258,10 +1266,60 @@ function switchTab(tab) {
     document.getElementById('tabSessions').style.display = tab === 'sessions' ? '' : 'none';
     document.getElementById('tabChanges').style.display = tab === 'changes' ? '' : 'none';
     document.getElementById('tabEmailTracking').style.display = tab === 'email-tracking' ? '' : 'none';
+    document.getElementById('tabNotes').style.display = tab === 'notes' ? '' : 'none';
     if (tab === 'field-balance') renderFieldChart();
     if (tab === 'changes') renderChangesTab();
     if (tab === 'sessions') renderSessions();
     if (tab === 'email-tracking') renderEmailTracking();
+    if (tab === 'notes') renderNotes();
+}
+
+// ============================================================
+// SHARED NOTES
+// ============================================================
+function postNote() {
+    const text = document.getElementById('newNoteText').value.trim();
+    if (!text) { alert('Please write something before posting.'); return; }
+    const note = {
+        id: Date.now(),
+        text,
+        author: currentUser || 'Unknown',
+        timestamp: new Date().toLocaleString('en-US', {year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'})
+    };
+    if (!window.sharedNotes) window.sharedNotes = [];
+    window.sharedNotes.unshift(note);
+    document.getElementById('newNoteText').value = '';
+    firebaseSync.pushState();
+    renderNotes();
+}
+
+function deleteNote(id) {
+    if (!confirm('Delete this note?')) return;
+    window.sharedNotes = (window.sharedNotes || []).filter(n => n.id !== id);
+    firebaseSync.pushState();
+    renderNotes();
+}
+
+function renderNotes() {
+    const el = document.getElementById('notesList');
+    if (!el) return;
+    const notes = window.sharedNotes || [];
+    if (notes.length === 0) {
+        el.innerHTML = '<div style="text-align:center;padding:40px;color:#a0aec0;font-size:14px;">No notes yet. Be the first to post one!</div>';
+        return;
+    }
+    el.innerHTML = notes.map(n => `
+        <div style="background:white;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+                <div>
+                    <strong style="font-size:13px;color:#2d3748;">&#x1F464; ${n.author}</strong>
+                    <span style="font-size:12px;color:#a0aec0;margin-left:10px;">${n.timestamp}</span>
+                </div>
+                ${n.author === currentUser ? `<button onclick="deleteNote(${n.id})" style="background:none;border:none;color:#e53e3e;cursor:pointer;font-size:13px;padding:0;" title="Delete note">&#x1F5D1;</button>` : ''}
+            </div>
+            <div style="font-size:14px;color:#4a5568;white-space:pre-wrap;line-height:1.6;">${n.text}</div>
+        </div>`
+    ).join('');
 }
 
 // ============================================================
