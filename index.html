@@ -1078,12 +1078,12 @@ async function init() {
         renderFieldChart();
         renderOrgCategoryBar();
         renderOrganizedSessions();
-        applyFilters();
     } catch(e) {
         console.error('[init] crashed:', e);
     }
-    // Event listener setup is OUTSIDE the try-catch so it always runs
-    // (inline oninput/onchange on HTML elements are also set as primary handlers)
+    // applyFilters is outside try-catch so it ALWAYS renders papers
+    applyFilters();
+    // Event listener setup is also always outside try-catch
     document.getElementById('searchBox').addEventListener('input', () => { currentPage = 1; applyFilters(); });
     document.getElementById('filterHasPaper').addEventListener('change', () => { currentPage = 1; applyFilters(); });
     document.getElementById('filterNoPaper').addEventListener('change', () => { currentPage = 1; applyFilters(); });
@@ -1177,8 +1177,8 @@ function getFilteredPapers() {
         if (phdOnly && !p.isPhD) return false;
         if (chineseOnly && p.language !== 'Chinese') return false;
 
-        // Field filter: paper must have at least one active field
-        if (p.jelFields.length > 0 && !p.jelFields.some(f => activeFields.has(f))) return false;
+        // Field filter: skip when no checkboxes exist yet (activeFields empty = no filter applied)
+        if (activeFields.size > 0 && p.jelFields.length > 0 && !p.jelFields.some(f => activeFields.has(f))) return false;
 
         if (search) {
             const hay = (p.title + ' ' + p.authors + ' ' + p.coauthors + ' ' + p.keywords + ' ' + p.jelCodes + ' ' + p.affiliation + ' ' + p.abstract).toLowerCase();
@@ -1208,9 +1208,6 @@ function sortPapers(papers) {
 }
 
 function applyFilters() {
-    // Guard: ensure filters are initialized before running
-    if (!document.getElementById('statusFilters').children.length) renderStatusFilters();
-    if (!document.getElementById('fieldFilters').children.length) renderFieldFilters();
     let papers = getFilteredPapers();
     papers = sortPapers(papers);
     document.getElementById('resultCount').textContent = `${papers.length} papers shown`;
