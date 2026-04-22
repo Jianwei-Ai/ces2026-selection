@@ -365,7 +365,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 
 <div class="main">
     <div class="sidebar">
-        <input type="text" class="search-box" id="searchBox" placeholder="Search papers, authors, keywords...">
+        <input type="text" class="search-box" id="searchBox" placeholder="Search papers, authors, keywords..." oninput="currentPage=1;applyFilters();">
         
         <h3>Status Filter</h3>
         <div class="filter-group" id="statusFilters"></div>
@@ -375,10 +375,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
         
         <h3>Other Filters</h3>
         <div class="filter-group">
-            <label><input type="checkbox" id="filterHasPaper" checked> Has Full Paper <span class="filter-count" id="countHasPaper"></span></label>
-            <label><input type="checkbox" id="filterNoPaper" checked> Abstract Only <span class="filter-count" id="countNoPaper"></span></label>
-            <label><input type="checkbox" id="filterPhD"> PhD Students Only <span class="filter-count" id="countPhD"></span></label>
-            <label><input type="checkbox" id="filterChinese"> Chinese Papers <span class="filter-count" id="countChinese"></span></label>
+            <label><input type="checkbox" id="filterHasPaper" checked onchange="currentPage=1;applyFilters();"> Has Full Paper <span class="filter-count" id="countHasPaper"></span></label>
+            <label><input type="checkbox" id="filterNoPaper" checked onchange="currentPage=1;applyFilters();"> Abstract Only <span class="filter-count" id="countNoPaper"></span></label>
+            <label><input type="checkbox" id="filterPhD" onchange="currentPage=1;applyFilters();"> PhD Students Only <span class="filter-count" id="countPhD"></span></label>
+            <label><input type="checkbox" id="filterChinese" onchange="currentPage=1;applyFilters();"> Chinese Papers <span class="filter-count" id="countChinese"></span></label>
         </div>
 
         <h3 style="margin-top:20px;">Bulk Actions</h3>
@@ -1065,20 +1065,25 @@ const STATUS_CSS = {
 // INITIALIZATION
 // ============================================================
 async function init() {
-    // Load saved state from Firebase before rendering
-    await firebaseSync.loadState();
-    firebaseSync.setupPresence();
-    firebaseSync.setupListener();
+    try {
+        // Load saved state from Firebase before rendering
+        await firebaseSync.loadState();
+        firebaseSync.setupPresence();
+        firebaseSync.setupListener();
 
-    renderStats();
-    renderStatusFilters();
-    renderFieldFilters();
-    renderFilterCounts();
-    renderFieldChart();
-    renderOrgCategoryBar();
-    renderOrganizedSessions();
-    applyFilters();
-
+        renderStats();
+        renderStatusFilters();
+        renderFieldFilters();
+        renderFilterCounts();
+        renderFieldChart();
+        renderOrgCategoryBar();
+        renderOrganizedSessions();
+        applyFilters();
+    } catch(e) {
+        console.error('[init] crashed:', e);
+    }
+    // Event listener setup is OUTSIDE the try-catch so it always runs
+    // (inline oninput/onchange on HTML elements are also set as primary handlers)
     document.getElementById('searchBox').addEventListener('input', () => { currentPage = 1; applyFilters(); });
     document.getElementById('filterHasPaper').addEventListener('change', () => { currentPage = 1; applyFilters(); });
     document.getElementById('filterNoPaper').addEventListener('change', () => { currentPage = 1; applyFilters(); });
@@ -1125,11 +1130,10 @@ function renderStatusFilters() {
         const label = document.createElement('label');
         label.style.cssText = 'display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:13px;';
         label.innerHTML = `
-            <input type="checkbox" checked data-status="${status}" style="flex-shrink:0;">
+            <input type="checkbox" checked data-status="${status}" onchange="currentPage=1;applyFilters();" style="flex-shrink:0;">
             <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0;"></span>
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${status}">${STATUS_LABELS[status] || status}</span>
             <span style="color:#a0aec0;font-size:11px;flex-shrink:0;">${count}</span>`;
-        label.querySelector('input').addEventListener('change', () => { currentPage = 1; applyFilters(); });
         container.appendChild(label);
     });
 }
@@ -1140,8 +1144,7 @@ function renderFieldFilters() {
     Object.keys(FIELD_STATS).sort().forEach(code => {
         const info = FIELD_STATS[code];
         const label = document.createElement('label');
-        label.innerHTML = `<input type="checkbox" checked data-field="${code}"> ${code}: ${info.name} <span class="filter-count">${info.pool}</span>`;
-        label.querySelector('input').addEventListener('change', () => { currentPage = 1; applyFilters(); });
+        label.innerHTML = `<input type="checkbox" checked data-field="${code}" onchange="currentPage=1;applyFilters();"> ${code}: ${info.name} <span class="filter-count">${info.pool}</span>`;
         container.appendChild(label);
     });
 }
@@ -1205,6 +1208,9 @@ function sortPapers(papers) {
 }
 
 function applyFilters() {
+    // Guard: ensure filters are initialized before running
+    if (!document.getElementById('statusFilters').children.length) renderStatusFilters();
+    if (!document.getElementById('fieldFilters').children.length) renderFieldFilters();
     let papers = getFilteredPapers();
     papers = sortPapers(papers);
     document.getElementById('resultCount').textContent = `${papers.length} papers shown`;
