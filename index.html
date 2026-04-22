@@ -1202,20 +1202,23 @@ function getFilteredPapers() {
     const showWaitlist  = document.getElementById('sf_waitlist').checked;
     const showRejected  = document.getElementById('sf_rejected').checked;
 
-    // Build a Set from the checked boxes
+    // Build a Set from the checked boxes; empty = treat as all selected
     const activeStatuses = new Set();
     if (showInPerson)  activeStatuses.add('Accepted (In-Person)');
     if (showOnline)    activeStatuses.add('Accepted (Online - PhD)');
     if (showWaitlist)  activeStatuses.add('Waitlist (In-Person)');
     if (showRejected)  activeStatuses.add('Rejected');
+    const statusFilterActive = activeStatuses.size > 0;
 
-    const activeFields = _selectedFields;  // Set of selected fields, or null = all
+    // Field filter: null or empty Set → treat as all selected
+    const activeFields = (_selectedFields && _selectedFields.size > 0) ? _selectedFields : null;
 
     return PAPERS.filter(p => {
         const status = paperStates[p.id];
-        if (!activeStatuses.has(status)) return false;
-        if (!hasPaper && p.hasPaperLink) return false;
-        if (!noPaper && !p.hasPaperLink) return false;
+        if (statusFilterActive && !activeStatuses.has(status)) return false;
+        if (!hasPaper && !noPaper) { /* both unchecked = show all */ }
+        else if (!hasPaper && p.hasPaperLink) return false;
+        else if (!noPaper && !p.hasPaperLink) return false;
         if (phdOnly && !p.isPhD) return false;
         if (chineseOnly && p.language !== 'Chinese') return false;
 
