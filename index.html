@@ -1368,6 +1368,12 @@ function switchTab(tab) {
     document.getElementById('tabEmailTracking').style.display = tab === 'email-tracking' ? '' : 'none';
     document.getElementById('tabNotes').style.display = tab === 'notes' ? '' : 'none';
     document.getElementById('tabCommittee').style.display = tab === 'committee' ? '' : 'none';
+    if (tab === 'all') {
+        // Always re-render when switching to All Papers (ensures papers show even if init() was delayed)
+        if (!document.getElementById('statusFilters').children.length) renderStatusFilters();
+        if (!document.getElementById('fieldFilters').children.length) renderFieldFilters();
+        applyFilters();
+    }
     if (tab === 'field-balance') renderFieldChart();
     if (tab === 'changes') renderChangesTab();
     if (tab === 'sessions') renderSessions();
