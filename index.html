@@ -1491,8 +1491,7 @@ function committeeLogout() {
     document.getElementById('committeeNameInput').value = '';
 }
 
-function switchCommitteeTab(filter) {
-    currentCommitteeFilter = filter;
+function _updateCommitteeTabUI(filter) {
     ['all', 'inperson', 'phd'].forEach(f => {
         const btn = document.getElementById('ctab-' + f);
         if (!btn) return;
@@ -1500,7 +1499,12 @@ function switchCommitteeTab(filter) {
         btn.style.color = f === filter ? 'white' : 'rgba(255,255,255,0.6)';
         btn.style.fontWeight = f === filter ? '600' : 'normal';
     });
-    renderCommitteePapers(filter);
+}
+
+function switchCommitteeTab(filter) {
+    currentCommitteeFilter = filter;
+    _updateCommitteeTabUI(filter);
+    renderCommitteePapers();
 }
 
 function getAcceptedPapers(filter) {
@@ -1516,7 +1520,7 @@ function getAcceptedPapers(filter) {
 
 function renderCommitteePapers(filter) {
     currentCommitteeFilter = filter || currentCommitteeFilter;
-    switchCommitteeTab(currentCommitteeFilter);
+    _updateCommitteeTabUI(currentCommitteeFilter);
     const list = document.getElementById('committeePaperList');
     if (!list) return;
     const papers = getAcceptedPapers(currentCommitteeFilter);
