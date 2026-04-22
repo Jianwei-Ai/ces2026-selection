@@ -1109,13 +1109,26 @@ function renderStats() {
 // ============================================================
 // FILTERS
 // ============================================================
+const STATUS_LABELS = {
+    'Accepted (In-Person)':  'In-Person',
+    'Accepted (Online - PhD)': 'Online (PhD)',
+    'Waitlist (In-Person)':  'Waitlist',
+    'Rejected':              'Rejected'
+};
+
 function renderStatusFilters() {
     const container = document.getElementById('statusFilters');
     container.innerHTML = '';
     STATUS_ORDER.forEach(status => {
         const count = PAPERS.filter(p => paperStates[p.id] === status).length;
+        const color = STATUS_COLORS[status];
         const label = document.createElement('label');
-        label.innerHTML = `<input type="checkbox" checked data-status="${status}"> <span style="color:${STATUS_COLORS[status]};font-weight:600;">●</span> ${status} <span class="filter-count">${count}</span>`;
+        label.style.cssText = 'display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:13px;';
+        label.innerHTML = `
+            <input type="checkbox" checked data-status="${status}" style="flex-shrink:0;">
+            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0;"></span>
+            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${status}">${STATUS_LABELS[status] || status}</span>
+            <span style="color:#a0aec0;font-size:11px;flex-shrink:0;">${count}</span>`;
         label.querySelector('input').addEventListener('change', () => { currentPage = 1; applyFilters(); });
         container.appendChild(label);
     });
