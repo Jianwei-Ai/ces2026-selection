@@ -1173,7 +1173,8 @@ function getFilteredPapers() {
 
     return PAPERS.filter(p => {
         const status = paperStates[p.id];
-        if (!activeStatuses.has(status)) return false;
+        // If no status checkboxes rendered yet, show all (treat as no filter)
+        if (activeStatuses.size > 0 && !activeStatuses.has(status)) return false;
         if (!hasPaper && p.hasPaperLink) return false;
         if (!noPaper && !p.hasPaperLink) return false;
         if (phdOnly && !p.isPhD) return false;
