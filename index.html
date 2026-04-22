@@ -914,7 +914,7 @@ const firebaseSync = {
                 if (data.sharedNotes) {
                     window.sharedNotes = data.sharedNotes;
                 }
-                if (data.changes) {
+                if (data.orgSessions) {
                     ORG_SESSIONS.length = 0;
                     data.orgSessions.forEach(s => ORG_SESSIONS.push(s));
                 }
@@ -923,6 +923,15 @@ const firebaseSync = {
                     data.sessions.forEach(s => SESSIONS.push(s));
                     sessionChanges.length = 0;
                     if (data.sessionChanges) data.sessionChanges.forEach(c => sessionChanges.push(c));
+                }
+                if (data.manualPapers) {
+                    window.manualPapers = window.manualPapers || [];
+                    data.manualPapers.forEach(p => {
+                        if (!PAPERS.find(x => x.id === p.id)) {
+                            PAPERS.push(p);
+                            if (!window.manualPapers.find(x => x.id === p.id)) window.manualPapers.push(p);
+                        }
+                    });
                 }
                 _isRemoteUpdate = false;
             }
@@ -961,7 +970,7 @@ const firebaseSync = {
                 window.sharedNotes = data.sharedNotes;
                 renderNotes();
             }
-            if (data.changes) {
+            if (data.orgSessions) {
                 ORG_SESSIONS.length = 0;
                 data.orgSessions.forEach(s => ORG_SESSIONS.push(s));
             }
@@ -970,6 +979,15 @@ const firebaseSync = {
                 data.sessions.forEach(s => SESSIONS.push(s));
                 sessionChanges.length = 0;
                 if (data.sessionChanges) data.sessionChanges.forEach(c => sessionChanges.push(c));
+            }
+            if (data.manualPapers) {
+                window.manualPapers = window.manualPapers || [];
+                data.manualPapers.forEach(p => {
+                    if (!PAPERS.find(x => x.id === p.id)) {
+                        PAPERS.push(p);
+                        if (!window.manualPapers.find(x => x.id === p.id)) window.manualPapers.push(p);
+                    }
+                });
             }
             // Re-render everything
             renderStats();
@@ -998,6 +1016,7 @@ const firebaseSync = {
                 orgSessions: ORG_SESSIONS.map(s => ({...s})),
                 sessions: SESSIONS.map(s => ({...s})),
                 sessionChanges: sessionChanges.slice(),
+                manualPapers: (window.manualPapers || []).slice(),
                 meta: {
                     lastModified: Date.now(),
                     lastUser: currentUser
@@ -3585,6 +3604,8 @@ function saveAddPaper() {
 
     PAPERS.push(newPaper);
     paperStates[newId] = status;
+    window.manualPapers = window.manualPapers || [];
+    window.manualPapers.push(newPaper);
 
     // If organized session, add to ORG_SESSIONS
     if (orgSession) {
