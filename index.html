@@ -1130,10 +1130,11 @@ function renderStatusFilters() {
         const label = document.createElement('label');
         label.style.cssText = 'display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:13px;';
         label.innerHTML = `
-            <input type="checkbox" checked data-status="${status}" onchange="currentPage=1;applyFilters();" style="flex-shrink:0;">
+            <input type="checkbox" checked data-status="${status}" style="flex-shrink:0;">
             <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0;"></span>
             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${status}">${STATUS_LABELS[status] || status}</span>
             <span style="color:#a0aec0;font-size:11px;flex-shrink:0;">${count}</span>`;
+        label.querySelector('input').addEventListener('change', () => { currentPage = 1; applyFilters(); });
         container.appendChild(label);
     });
 }
@@ -1144,7 +1145,8 @@ function renderFieldFilters() {
     Object.keys(FIELD_STATS).sort().forEach(code => {
         const info = FIELD_STATS[code];
         const label = document.createElement('label');
-        label.innerHTML = `<input type="checkbox" checked data-field="${code}" onchange="currentPage=1;applyFilters();"> ${code}: ${info.name} <span class="filter-count">${info.pool}</span>`;
+        label.innerHTML = `<input type="checkbox" checked data-field="${code}"> ${code}: ${info.name} <span class="filter-count">${info.pool}</span>`;
+        label.querySelector('input').addEventListener('change', () => { currentPage = 1; applyFilters(); });
         container.appendChild(label);
     });
 }
@@ -1177,7 +1179,7 @@ function getFilteredPapers() {
         if (phdOnly && !p.isPhD) return false;
         if (chineseOnly && p.language !== 'Chinese') return false;
 
-        // Field filter: skip when no checkboxes exist yet (activeFields empty = no filter applied)
+        // Field filter: paper must have at least one active field
         if (activeFields.size > 0 && p.jelFields.length > 0 && !p.jelFields.some(f => activeFields.has(f))) return false;
 
         if (search) {
