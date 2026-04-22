@@ -1456,6 +1456,7 @@ function switchTab(tab) {
         applyFilters();
     }
     if (tab === 'field-balance') renderFieldChart();
+    if (tab === 'organized') { renderOrgCategoryBar(); renderOrganizedSessions(); }
     if (tab === 'changes') renderChangesTab();
     if (tab === 'sessions') renderSessions();
     if (tab === 'email-tracking') renderEmailTracking();
