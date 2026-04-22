@@ -309,9 +309,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
         </div>
         <div style="background:rgba(0,0,0,0.15);padding:0 24px;display:flex;gap:0;align-items:stretch;justify-content:space-between;flex-wrap:wrap;">
             <div style="display:flex;gap:0;">
-                <button id="ctab-all" onclick="switchCommitteeTab('all')" style="padding:10px 22px;border:none;border-bottom:3px solid white;background:transparent;color:white;font-size:13px;font-weight:600;cursor:pointer;">All Accepted</button>
-                <button id="ctab-inperson" onclick="switchCommitteeTab('inperson')" style="padding:10px 22px;border:none;border-bottom:3px solid transparent;background:transparent;color:rgba(255,255,255,0.6);font-size:13px;cursor:pointer;">In-Person</button>
-                <button id="ctab-phd" onclick="switchCommitteeTab('phd')" style="padding:10px 22px;border:none;border-bottom:3px solid transparent;background:transparent;color:rgba(255,255,255,0.6);font-size:13px;cursor:pointer;">&#x1F393; PhD / Online</button>
+                <button id="ctab-all" onclick="switchCommitteeTab('all')" style="padding:10px 22px;border:none;border-bottom:3px solid white;background:transparent;color:white;font-size:13px;font-weight:600;cursor:pointer;">All In-Person</button>
+                <button id="ctab-phd" onclick="switchCommitteeTab('phd')" style="padding:10px 22px;border:none;border-bottom:3px solid transparent;background:transparent;color:rgba(255,255,255,0.6);font-size:13px;cursor:pointer;">&#x1F393; PhD Student Papers</button>
             </div>
             <div style="display:flex;align-items:center;padding:6px 0;">
                 <label style="color:rgba(255,255,255,0.7);font-size:12px;margin-right:8px;">Field:</label>
@@ -1525,7 +1524,7 @@ function populateCommitteeFieldFilter() {
 }
 
 function _updateCommitteeTabUI(filter) {
-    ['all', 'inperson', 'phd'].forEach(f => {
+    ['all', 'phd'].forEach(f => {
         const btn = document.getElementById('ctab-' + f);
         if (!btn) return;
         btn.style.borderBottomColor = f === filter ? 'white' : 'transparent';
@@ -1543,10 +1542,9 @@ function switchCommitteeTab(filter) {
 function getAcceptedPapers(filter, fieldCode) {
     return PAPERS.filter(p => {
         const st = paperStates[p.id] || p.status;
-        const isAccepted = st === 'Accepted (In-Person)' || st === 'Accepted (Online - PhD)';
+        const isAccepted = st === 'Accepted (In-Person)';
         if (!isAccepted) return false;
-        if (filter === 'inperson') { if (st !== 'Accepted (In-Person)') return false; }
-        else if (filter === 'phd') { if (st !== 'Accepted (Online - PhD)' && !p.isPhD) return false; }
+        if (filter === 'phd') { if (!p.isPhD) return false; }
         if (fieldCode && p.primaryField !== fieldCode) return false;
         return true;
     });
