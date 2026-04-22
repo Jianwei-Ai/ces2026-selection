@@ -368,7 +368,32 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
         <input type="text" class="search-box" id="searchBox" placeholder="Search papers, authors, keywords..." oninput="currentPage=1;applyFilters();">
         
         <h3>Status Filter</h3>
-        <div class="filter-group" id="statusFilters"></div>
+        <div class="filter-group" id="statusFilters">
+            <label style="display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:13px;">
+                <input type="checkbox" id="sf_inperson" checked onchange="currentPage=1;applyFilters();">
+                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#48bb78;flex-shrink:0;"></span>
+                <span style="flex:1;">In-Person</span>
+                <span style="color:#a0aec0;font-size:11px;" id="sf_inperson_count"></span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:13px;">
+                <input type="checkbox" id="sf_online" checked onchange="currentPage=1;applyFilters();">
+                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#4299e1;flex-shrink:0;"></span>
+                <span style="flex:1;">Online (PhD)</span>
+                <span style="color:#a0aec0;font-size:11px;" id="sf_online_count"></span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:13px;">
+                <input type="checkbox" id="sf_waitlist" checked onchange="currentPage=1;applyFilters();">
+                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ecc94b;flex-shrink:0;"></span>
+                <span style="flex:1;">Waitlist</span>
+                <span style="color:#a0aec0;font-size:11px;" id="sf_waitlist_count"></span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:13px;">
+                <input type="checkbox" id="sf_rejected" checked onchange="currentPage=1;applyFilters();">
+                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#fc8181;flex-shrink:0;"></span>
+                <span style="flex:1;">Rejected</span>
+                <span style="color:#a0aec0;font-size:11px;" id="sf_rejected_count"></span>
+            </label>
+        </div>
         
         <h3>Field Filter (JEL)</h3>
         <div class="filter-group" id="fieldFilters" style="max-height: 300px; overflow-y: auto;"></div>
@@ -1127,29 +1152,14 @@ let _selectedStatuses = new Set(STATUS_ORDER);  // all selected by default
 let _selectedFields = null;  // null = all selected (populated after renderFieldFilters)
 
 function renderStatusFilters() {
-    const container = document.getElementById('statusFilters');
-    container.innerHTML = '';
-    _selectedStatuses = new Set(STATUS_ORDER);  // reset to all checked
-    STATUS_ORDER.forEach(status => {
-        const count = PAPERS.filter(p => paperStates[p.id] === status).length;
-        const color = STATUS_COLORS[status];
-        const label = document.createElement('label');
-        label.style.cssText = 'display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:13px;';
-        label.innerHTML = `
-            <input type="checkbox" checked style="flex-shrink:0;">
-            <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0;"></span>
-            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${status}">${STATUS_LABELS[status] || status}</span>
-            <span style="color:#a0aec0;font-size:11px;flex-shrink:0;">${count}</span>`;
-        const cb = label.querySelector('input');
-        cb._status = status;  // store directly on the element to avoid closure issues
-        cb.onchange = function() {
-            if (this.checked) _selectedStatuses.add(this._status);
-            else _selectedStatuses.delete(this._status);
-            currentPage = 1;
-            applyFilters();
-        };
-        container.appendChild(label);
-    });
+    // Static checkboxes already in HTML — just update the counts
+    const counts = {};
+    STATUS_ORDER.forEach(s => counts[s] = 0);
+    PAPERS.forEach(p => { const s = paperStates[p.id]; if (s) counts[s] = (counts[s] || 0) + 1; });
+    document.getElementById('sf_inperson_count').textContent = counts['Accepted (In-Person)'] || 0;
+    document.getElementById('sf_online_count').textContent = counts['Accepted (Online - PhD)'] || 0;
+    document.getElementById('sf_waitlist_count').textContent = counts['Waitlist (In-Person)'] || 0;
+    document.getElementById('sf_rejected_count').textContent = counts['Rejected'] || 0;
 }
 
 function renderFieldFilters() {
@@ -1186,9 +1196,20 @@ function getFilteredPapers() {
     const phdOnly = document.getElementById('filterPhD').checked;
     const chineseOnly = document.getElementById('filterChinese').checked;
 
-    // Use global state variables — never query the DOM for filter state
-    const activeStatuses = _selectedStatuses;  // Set of selected statuses
-    const activeFields = _selectedFields;      // Set of selected fields, or null = all
+    // Read status filter directly from static checkbox IDs — most reliable approach
+    const showInPerson  = document.getElementById('sf_inperson').checked;
+    const showOnline    = document.getElementById('sf_online').checked;
+    const showWaitlist  = document.getElementById('sf_waitlist').checked;
+    const showRejected  = document.getElementById('sf_rejected').checked;
+
+    // Build a Set from the checked boxes
+    const activeStatuses = new Set();
+    if (showInPerson)  activeStatuses.add('Accepted (In-Person)');
+    if (showOnline)    activeStatuses.add('Accepted (Online - PhD)');
+    if (showWaitlist)  activeStatuses.add('Waitlist (In-Person)');
+    if (showRejected)  activeStatuses.add('Rejected');
+
+    const activeFields = _selectedFields;  // Set of selected fields, or null = all
 
     return PAPERS.filter(p => {
         const status = paperStates[p.id];
