@@ -886,6 +886,7 @@ let _isRemoteUpdate = false;  // prevent sync loops
 let _syncDebounceTimer = null;
 let _firebaseReady = false;
 let _initialLoadDone = false;
+let _skipNextListenerFire = true;  // suppress the immediate listener fire on setup
 
 const firebaseSync = {
     // Set up presence (online users)
@@ -920,10 +921,21 @@ const firebaseSync = {
             const data = snap.val();
             if (data) {
                 _isRemoteUpdate = true;
-                // paperStates intentionally NOT loaded from Firebase on page load.
-                // Firebase DB contains stale/corrupted status values from old portal versions
-                // that cause papers to vanish. HTML-embedded statuses are the source of truth.
-                // Real-time status changes from other active users still arrive via setupListener.
+                if (data.paperStates) {
+                    Object.keys(data.paperStates).forEach(id => {
+                        const s = data.paperStates[id];
+                        // Only apply values that are valid STATUS_ORDER strings.
+                        // Unrecognized strings (from old portal versions) are silently ignored
+                        // and the paper keeps its HTML-embedded status instead.
+                        if (STATUS_ORDER.includes(s)) paperStates[id] = s;
+                    });
+                }
+                if (data.changes) {
+                    changes.length = 0;
+                    data.changes.forEach(c => changes.push(c));
+                    if (document.getElementById('changeCount'))
+                        document.getElementById('changeCount').textContent = changes.length;
+                }
                 if (data.paperEdits) {
                     window.paperEdits = data.paperEdits;
                     // Apply edits to PAPERS so they show up immediately
@@ -974,9 +986,22 @@ const firebaseSync = {
             if (!data) return;
             // Skip if this was our own write (debounce + timestamp check)
             if (data.meta && data.meta.lastUser === currentUser && Date.now() - data.meta.lastModified < 2000) return;
+            // Skip the immediate fire that happens when the listener is first attached
+            // (that would replay the same stale data loadState already handled)
+            if (_skipNextListenerFire) { _skipNextListenerFire = false; return; }
             _isRemoteUpdate = true;
-            // paperStates NOT synced from Firebase — stale DB values corrupt the filter.
-            // Local status changes (changeStatus) still push to Firebase for export.
+            if (data.paperStates) {
+                Object.keys(data.paperStates).forEach(id => {
+                    const s = data.paperStates[id];
+                    if (STATUS_ORDER.includes(s)) paperStates[id] = s;
+                });
+            }
+            if (data.changes) {
+                changes.length = 0;
+                data.changes.forEach(c => changes.push(c));
+                if (document.getElementById('changeCount'))
+                    document.getElementById('changeCount').textContent = changes.length;
+            }
             if (data.paperEdits) {
                 window.paperEdits = data.paperEdits;
                 Object.keys(data.paperEdits).forEach(id => {
