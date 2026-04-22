@@ -922,7 +922,9 @@ const firebaseSync = {
                 _isRemoteUpdate = true;
                 if (data.paperStates) {
                     Object.keys(data.paperStates).forEach(id => {
-                        paperStates[id] = data.paperStates[id];
+                        const s = data.paperStates[id];
+                        // Only accept recognized status values; discard stale strings from old portal versions
+                        if (STATUS_ORDER.includes(s)) paperStates[id] = s;
                     });
                 }
                 if (data.paperEdits) {
@@ -978,7 +980,8 @@ const firebaseSync = {
             _isRemoteUpdate = true;
             if (data.paperStates) {
                 Object.keys(data.paperStates).forEach(id => {
-                    paperStates[id] = data.paperStates[id];
+                    const s = data.paperStates[id];
+                    if (STATUS_ORDER.includes(s)) paperStates[id] = s;
                 });
             }
             if (data.paperEdits) {
