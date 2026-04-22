@@ -280,15 +280,41 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 </div>
 
 <!-- Committee Placeholder Page -->
-<div id="committeePage" style="display:none;min-height:100vh;background:linear-gradient(135deg,#1a365d 0%,#276749 100%);display:none;align-items:center;justify-content:center;flex-direction:column;">
-    <div style="background:white;border-radius:16px;padding:48px 40px;max-width:560px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
-        <div style="font-size:64px;margin-bottom:16px;">&#x1F3C6;</div>
-        <h1 style="font-size:24px;color:#1a365d;margin-bottom:10px;">Best Paper Award — Committee Portal</h1>
-        <p style="color:#718096;font-size:15px;margin-bottom:28px;">The accepted paper list will be available here once the program is finalized. Please check back later.</p>
-        <div style="background:#f0fff4;border:1px solid #9ae6b4;border-radius:10px;padding:16px;font-size:14px;color:#276749;margin-bottom:28px;">
-            &#x23F3; Coming soon &mdash; the organizers will notify you when this portal is ready.
+<div id="committeePage" style="display:none;min-height:100vh;background:linear-gradient(135deg,#1a365d 0%,#276749 100%);">
+    <!-- Committee Login View -->
+    <div id="committeeLoginView" style="display:flex;min-height:100vh;align-items:center;justify-content:center;">
+        <div style="background:white;border-radius:16px;padding:48px 40px;max-width:460px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+            <div style="font-size:64px;margin-bottom:16px;">&#x1F3C6;</div>
+            <h1 style="font-size:24px;color:#1a365d;margin-bottom:8px;">Best Paper Award</h1>
+            <p style="color:#718096;font-size:15px;margin-bottom:28px;">Committee Portal &mdash; CES 2026 China Conference</p>
+            <input type="text" id="committeeNameInput" placeholder="Enter your name to continue"
+                style="width:100%;padding:12px 16px;border:2px solid #e2e8f0;border-radius:8px;font-size:15px;box-sizing:border-box;margin-bottom:16px;outline:none;"
+                onkeydown="if(event.key==='Enter') committeeLogin()">
+            <button onclick="committeeLogin()" style="width:100%;padding:12px;background:#1a365d;color:white;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;">Enter Portal &#x2192;</button>
+            <button onclick="switchToOrganizer()" style="margin-top:12px;width:100%;padding:10px;background:transparent;color:#718096;border:2px solid #e2e8f0;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600;">&#x2190; Back to Role Selection</button>
         </div>
-        <button onclick="switchToOrganizer()" style="padding:10px 24px;border-radius:8px;border:2px solid #e2e8f0;background:#f7fafc;font-size:14px;font-weight:600;color:#4a5568;cursor:pointer;">&#x2190; Back to Role Selection</button>
+    </div>
+    <!-- Committee Voting View -->
+    <div id="committeeVotingView" style="display:none;min-height:100vh;">
+        <div style="background:rgba(0,0,0,0.25);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <div>
+                <div style="color:rgba(255,255,255,0.65);font-size:11px;text-transform:uppercase;letter-spacing:1px;">CES 2026 China Conference</div>
+                <div style="color:white;font-size:19px;font-weight:700;margin-top:2px;">&#x1F3C6; Best Paper Award &mdash; Committee Portal</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;">
+                <span id="committeeMemberBadge" style="background:rgba(255,255,255,0.15);color:white;padding:5px 14px;border-radius:20px;font-size:13px;font-weight:600;"></span>
+                <div id="committeeSyncBadge" style="background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);padding:5px 12px;border-radius:20px;font-size:11px;">&#x25CF; Connecting...</div>
+                <button onclick="committeeLogout()" style="padding:7px 16px;background:transparent;color:rgba(255,255,255,0.8);border:1px solid rgba(255,255,255,0.35);border-radius:8px;font-size:13px;cursor:pointer;font-weight:500;">Exit</button>
+            </div>
+        </div>
+        <div style="background:rgba(0,0,0,0.15);padding:0 24px;display:flex;gap:0;">
+            <button id="ctab-all" onclick="switchCommitteeTab('all')" style="padding:10px 22px;border:none;border-bottom:3px solid white;background:transparent;color:white;font-size:13px;font-weight:600;cursor:pointer;">All Accepted</button>
+            <button id="ctab-inperson" onclick="switchCommitteeTab('inperson')" style="padding:10px 22px;border:none;border-bottom:3px solid transparent;background:transparent;color:rgba(255,255,255,0.6);font-size:13px;cursor:pointer;">In-Person</button>
+            <button id="ctab-phd" onclick="switchCommitteeTab('phd')" style="padding:10px 22px;border:none;border-bottom:3px solid transparent;background:transparent;color:rgba(255,255,255,0.6);font-size:13px;cursor:pointer;">&#x1F393; PhD / Online</button>
+        </div>
+        <div id="committeePaperList" style="padding:20px 24px;max-width:960px;margin:0 auto;">
+            <div style="color:rgba(255,255,255,0.6);text-align:center;padding:40px 0;">Loading papers...</div>
+        </div>
     </div>
 </div>
 
@@ -363,6 +389,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
             <div class="tab" data-tab="changes" onclick="switchTab('changes')">Changes</div>
             <div class="tab" data-tab="email-tracking" onclick="switchTab('email-tracking')">&#x1F4E7; Email Tracking</div>
             <div class="tab" data-tab="notes" onclick="switchTab('notes')">&#x1F4DD; Notes</div>
+            <div class="tab" data-tab="committee" onclick="switchTab('committee')">&#x1F3C6; Committee</div>
         </div>
 
         <div class="changes-banner" id="changesBanner">
@@ -481,6 +508,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
                 <button class="btn btn-success" onclick="postNote()" style="white-space:nowrap;padding:10px 20px;">&#x1F4E4; Post Note</button>
             </div>
             <div id="notesList"></div>
+        </div>
+
+        <div id="tabCommittee" style="display:none;">
+            <h2 style="font-size:18px;margin:0 0 16px;">&#x1F3C6; Best Paper Award &mdash; Committee Results</h2>
+            <div id="committeeOrgContent">
+                <div style="color:#718096;text-align:center;padding:30px;">Loading committee data...</div>
+            </div>
         </div>
 
         <div id="tabSessions" style="display:none;">
@@ -682,12 +716,32 @@ let currentUser = localStorage.getItem('ces2026_user') || '';
 let currentRole = localStorage.getItem('ces2026_role') || '';
 
 // ---- Role selection ----
+// Committee member state
+let committeeMember = localStorage.getItem('ces2026_committee_member') || '';
+let currentCommitteeFilter = 'all';
+window.committeeData = {};
+window.committeeSettings = { resultsOpen: false, winners: {} };
+
+function getCommitteeMemberId() {
+    return encodeURIComponent(committeeMember).replace(/\./g, '%2E').replace(/%/g, '_');
+}
+
 function selectRole(role) {
     currentRole = role;
     localStorage.setItem('ces2026_role', role);
     document.getElementById('roleOverlay').style.display = 'none';
     if (role === 'committee') {
-        document.getElementById('committeePage').style.display = 'flex';
+        document.getElementById('committeePage').style.display = 'block';
+        if (committeeMember) {
+            document.getElementById('committeeLoginView').style.display = 'none';
+            document.getElementById('committeeVotingView').style.display = 'block';
+            document.getElementById('committeeMemberBadge').textContent = committeeMember;
+            loadAndListenCommitteeData();
+            renderCommitteePapers('all');
+        } else {
+            document.getElementById('committeeLoginView').style.display = 'flex';
+            document.getElementById('committeeVotingView').style.display = 'none';
+        }
     } else {
         // organizer: show login if not already logged in
         if (!currentUser) {
@@ -713,7 +767,14 @@ function switchToOrganizer() {
     } else if (currentRole === 'committee') {
         document.getElementById('roleOverlay').style.display = 'none';
         document.getElementById('loginOverlay').style.display = 'none';
-        document.getElementById('committeePage').style.display = 'flex';
+        document.getElementById('committeePage').style.display = 'block';
+        if (committeeMember) {
+            document.getElementById('committeeLoginView').style.display = 'none';
+            document.getElementById('committeeVotingView').style.display = 'block';
+        } else {
+            document.getElementById('committeeLoginView').style.display = 'flex';
+            document.getElementById('committeeVotingView').style.display = 'none';
+        }
     } else {
         // organizer
         document.getElementById('roleOverlay').style.display = 'none';
@@ -760,6 +821,13 @@ if (currentUser) {
 
 // Initialize paper states
 PAPERS.forEach(p => { paperStates[p.id] = p.status; });
+
+// Init committee portal if returning member
+if (currentRole === 'committee' && committeeMember) {
+    document.getElementById('committeeMemberBadge').textContent = committeeMember;
+    loadAndListenCommitteeData();
+    renderCommitteePapers('all');
+}
 
 // ============================================================
 // FIREBASE REAL-TIME SYNC
@@ -1267,11 +1335,13 @@ function switchTab(tab) {
     document.getElementById('tabChanges').style.display = tab === 'changes' ? '' : 'none';
     document.getElementById('tabEmailTracking').style.display = tab === 'email-tracking' ? '' : 'none';
     document.getElementById('tabNotes').style.display = tab === 'notes' ? '' : 'none';
+    document.getElementById('tabCommittee').style.display = tab === 'committee' ? '' : 'none';
     if (tab === 'field-balance') renderFieldChart();
     if (tab === 'changes') renderChangesTab();
     if (tab === 'sessions') renderSessions();
     if (tab === 'email-tracking') renderEmailTracking();
     if (tab === 'notes') renderNotes();
+    if (tab === 'committee') renderCommitteeTab();
 }
 
 // ============================================================
@@ -1395,6 +1465,265 @@ function renderNotes() {
         return;
     }
     el.innerHTML = roots.map(n => renderNoteNode(n, 0)).join('');
+}
+
+// ============================================================
+// COMMITTEE PORTAL
+// ============================================================
+function committeeLogin() {
+    const name = document.getElementById('committeeNameInput').value.trim();
+    if (!name) { alert('Please enter your name.'); return; }
+    committeeMember = name;
+    localStorage.setItem('ces2026_committee_member', name);
+    document.getElementById('committeeLoginView').style.display = 'none';
+    document.getElementById('committeeVotingView').style.display = 'block';
+    document.getElementById('committeeMemberBadge').textContent = name;
+    loadAndListenCommitteeData();
+    renderCommitteePapers('all');
+}
+
+function committeeLogout() {
+    committeeMember = '';
+    localStorage.removeItem('ces2026_committee_member');
+    db.ref('committeeData').off();
+    document.getElementById('committeeVotingView').style.display = 'none';
+    document.getElementById('committeeLoginView').style.display = 'flex';
+    document.getElementById('committeeNameInput').value = '';
+}
+
+function switchCommitteeTab(filter) {
+    currentCommitteeFilter = filter;
+    ['all', 'inperson', 'phd'].forEach(f => {
+        const btn = document.getElementById('ctab-' + f);
+        if (!btn) return;
+        btn.style.borderBottomColor = f === filter ? 'white' : 'transparent';
+        btn.style.color = f === filter ? 'white' : 'rgba(255,255,255,0.6)';
+        btn.style.fontWeight = f === filter ? '600' : 'normal';
+    });
+    renderCommitteePapers(filter);
+}
+
+function getAcceptedPapers(filter) {
+    return PAPERS.filter(p => {
+        const st = paperStates[p.id] || p.status;
+        const isAccepted = st === 'Accepted (In-Person)' || st === 'Accepted (Online - PhD)';
+        if (!isAccepted) return false;
+        if (filter === 'inperson') return st === 'Accepted (In-Person)';
+        if (filter === 'phd') return st === 'Accepted (Online - PhD)' || p.isPhD;
+        return true;
+    });
+}
+
+function renderCommitteePapers(filter) {
+    currentCommitteeFilter = filter || currentCommitteeFilter;
+    switchCommitteeTab(currentCommitteeFilter);
+    const list = document.getElementById('committeePaperList');
+    if (!list) return;
+    const papers = getAcceptedPapers(currentCommitteeFilter);
+    const memberId = getCommitteeMemberId();
+    const myVotes = (window.committeeData[memberId] || {});
+    const resultsOpen = (window.committeeSettings || {}).resultsOpen;
+    if (papers.length === 0) {
+        list.innerHTML = '<div style="color:rgba(255,255,255,0.6);text-align:center;padding:40px 0;">No papers found.</div>';
+        return;
+    }
+    list.innerHTML = papers.map(p => {
+        const vote = myVotes[p.id] || {};
+        const hasBest = vote.bestPaper === true;
+        const hasStudent = vote.studentPaper === true;
+        const comment = vote.comment || '';
+        let bestCount = 0, studentCount = 0;
+        if (resultsOpen) {
+            Object.values(window.committeeData || {}).forEach(mv => {
+                if (mv[p.id]) {
+                    if (mv[p.id].bestPaper) bestCount++;
+                    if (mv[p.id].studentPaper) studentCount++;
+                }
+            });
+        }
+        const linkHtml = p.hasPaperLink
+            ? `<a href="${escapeHtml(p.paperLink)}" target="_blank" rel="noopener noreferrer"
+                   style="display:inline-flex;align-items:center;gap:5px;padding:4px 12px;background:#ebf8ff;border:1px solid #bee3f8;border-radius:6px;color:#2b6cb0;font-size:12px;font-weight:600;text-decoration:none;margin-bottom:10px;">
+                  &#x1F4C4; View Full Paper
+               </a>` : '';
+        const bestCountHtml = resultsOpen && bestCount > 0
+            ? `<span style="margin-left:6px;font-size:11px;color:#718096;">(${bestCount} nomination${bestCount > 1 ? 's' : ''})</span>` : '';
+        const studentCountHtml = resultsOpen && studentCount > 0
+            ? `<span style="margin-left:6px;font-size:11px;color:#718096;">(${studentCount} nomination${studentCount > 1 ? 's' : ''})</span>` : '';
+        const studentBtnHtml = p.isPhD
+            ? `<button onclick="toggleCommitteeVote(${p.id}, 'studentPaper')"
+                  style="padding:7px 16px;border:2px solid ${hasStudent ? '#38a169' : '#e2e8f0'};
+                         background:${hasStudent ? '#f0fff4' : 'white'};border-radius:8px;font-size:13px;
+                         font-weight:600;cursor:pointer;color:${hasStudent ? '#276749' : '#4a5568'};">
+                  ${hasStudent ? '&#x2713;' : ''} &#x1F393; Nominate Student Paper
+               </button>${studentCountHtml}` : '';
+        const winners = (window.committeeSettings || {}).winners || {};
+        const isWinnerBest = winners.bestPaper == p.id;
+        const isWinnerSt1 = winners.studentPaper1 == p.id;
+        const isWinnerSt2 = winners.studentPaper2 == p.id;
+        const winnerBadge = isWinnerBest
+            ? '<span style="background:#d4af37;color:white;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:700;margin-left:8px;">&#x1F3C6; Best Paper</span>'
+            : isWinnerSt1
+            ? '<span style="background:#276749;color:white;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:700;margin-left:8px;">&#x1F393; Student Award #1</span>'
+            : isWinnerSt2
+            ? '<span style="background:#276749;color:white;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:700;margin-left:8px;">&#x1F393; Student Award #2</span>'
+            : '';
+        return `
+        <div style="background:white;border-radius:12px;padding:18px 20px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,0.12);">
+            <div style="margin-bottom:4px;display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;">
+                <div style="font-size:15px;font-weight:700;color:#1a202c;flex:1;">${escapeHtml(p.title)}${winnerBadge}</div>
+                ${p.isPhD ? '<span style="background:#ebf8ff;color:#2b6cb0;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;white-space:nowrap;">PhD</span>' : ''}
+            </div>
+            <div style="color:#718096;font-size:13px;margin-bottom:10px;">${escapeHtml(p.authors)}${p.affiliation ? ' &mdash; ' + escapeHtml(p.affiliation) : ''}</div>
+            ${linkHtml}
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+                <button onclick="toggleCommitteeVote(${p.id}, 'bestPaper')"
+                    style="padding:7px 16px;border:2px solid ${hasBest ? '#d4af37' : '#e2e8f0'};
+                           background:${hasBest ? '#fffbeb' : 'white'};border-radius:8px;font-size:13px;
+                           font-weight:600;cursor:pointer;color:${hasBest ? '#92400e' : '#4a5568'};">
+                    ${hasBest ? '&#x2605;' : '&#x2606;'} Nominate Best Paper
+                </button>${bestCountHtml}
+                ${studentBtnHtml}
+            </div>
+            <div>
+                <textarea id="comment-${p.id}" rows="2" placeholder="Add a comment (optional)..."
+                    style="width:100%;padding:8px 12px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;resize:vertical;font-family:inherit;box-sizing:border-box;"
+                    onblur="saveCommitteeComment(${p.id})">${escapeHtml(comment)}</textarea>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function toggleCommitteeVote(paperId, type) {
+    const memberId = getCommitteeMemberId();
+    if (!window.committeeData[memberId]) window.committeeData[memberId] = {};
+    if (!window.committeeData[memberId][paperId]) window.committeeData[memberId][paperId] = {};
+    const current = window.committeeData[memberId][paperId][type] === true;
+    window.committeeData[memberId][paperId][type] = !current;
+    db.ref('committeeData/votes/' + memberId + '/' + paperId + '/' + type).set(!current)
+        .then(() => {
+            const badge = document.getElementById('committeeSyncBadge');
+            if (badge) { badge.textContent = '● Saved'; badge.style.color = 'rgba(154,230,180,0.9)'; }
+        })
+        .catch(e => console.error('Vote save error:', e));
+    renderCommitteePapers(currentCommitteeFilter);
+}
+
+function saveCommitteeComment(paperId) {
+    const memberId = getCommitteeMemberId();
+    const el = document.getElementById('comment-' + paperId);
+    if (!el) return;
+    const text = el.value.trim();
+    if (!window.committeeData[memberId]) window.committeeData[memberId] = {};
+    if (!window.committeeData[memberId][paperId]) window.committeeData[memberId][paperId] = {};
+    window.committeeData[memberId][paperId].comment = text;
+    db.ref('committeeData/votes/' + memberId + '/' + paperId + '/comment').set(text);
+}
+
+function loadAndListenCommitteeData() {
+    const badge = document.getElementById('committeeSyncBadge');
+    if (badge) badge.textContent = '● Connecting...';
+    db.ref('committeeData').on('value', (snap) => {
+        const data = snap.val() || {};
+        window.committeeData = data.votes || {};
+        window.committeeSettings = data.settings || { resultsOpen: false, winners: {} };
+        if (badge) { badge.textContent = '● Live'; badge.style.color = 'rgba(154,230,180,0.9)'; }
+        renderCommitteePapers(currentCommitteeFilter);
+        renderCommitteeTab();
+    });
+}
+
+// ---- Organizer side: render committee results tab ----
+function renderCommitteeTab() {
+    const el = document.getElementById('committeeOrgContent');
+    if (!el) return;
+    const data = window.committeeData || {};
+    const settings = window.committeeSettings || { resultsOpen: false, winners: {} };
+    const winners = settings.winners || {};
+    const members = Object.keys(data);
+    const bestCounts = {}, studentCounts = {}, memberVoters = {}, studentVoters = {};
+    members.forEach(memberId => {
+        const memberName = decodeURIComponent(memberId.replace(/_/g, '%'));
+        const mv = data[memberId] || {};
+        Object.keys(mv).forEach(paperId => {
+            const v = mv[paperId];
+            if (v && v.bestPaper) {
+                bestCounts[paperId] = (bestCounts[paperId] || 0) + 1;
+                if (!memberVoters[paperId]) memberVoters[paperId] = [];
+                memberVoters[paperId].push(memberName);
+            }
+            if (v && v.studentPaper) {
+                studentCounts[paperId] = (studentCounts[paperId] || 0) + 1;
+                if (!studentVoters[paperId]) studentVoters[paperId] = [];
+                studentVoters[paperId].push(memberName);
+            }
+        });
+    });
+    const sortedBest = Object.entries(bestCounts).sort((a,b) => b[1]-a[1]);
+    const sortedStudent = Object.entries(studentCounts).sort((a,b) => b[1]-a[1]);
+    const getPaper = id => PAPERS.find(p => p.id == id);
+    const toggleStyle = settings.resultsOpen
+        ? 'background:#276749;color:white;'
+        : 'background:#e2e8f0;color:#4a5568;';
+    const renderNomList = (sorted, voters, winnerKey1, winnerKey2) => {
+        if (sorted.length === 0) return '<p style="color:#718096;font-size:13px;">No nominations yet.</p>';
+        return sorted.map(([pid, cnt]) => {
+            const p = getPaper(pid);
+            if (!p) return '';
+            const voterNames = (voters[pid] || []).join(', ');
+            const isW1 = winners[winnerKey1] == pid;
+            const isW2 = winnerKey2 && winners[winnerKey2] == pid;
+            const w2btn = winnerKey2
+                ? `<button onclick="setCommitteeWinner('${winnerKey2}', ${pid})" style="padding:4px 10px;background:${isW2 ? '#c6f6d5' : 'white'};border:1px solid #e2e8f0;border-radius:6px;font-size:12px;cursor:pointer;">${isW2 ? '&#x2713; #2' : 'Set #2'}</button>`
+                : '';
+            return `<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:${isW1||isW2?'#f0fff4':'#f7fafc'};border-radius:8px;margin-bottom:6px;border:1px solid ${isW1||isW2?'#9ae6b4':'#e2e8f0'};">
+                <span style="background:${cnt>=3?'#276749':'#4a5568'};color:white;border-radius:50%;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0;">${cnt}</span>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-size:14px;font-weight:600;color:#1a202c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(p.title)}</div>
+                    <div style="font-size:12px;color:#718096;">${escapeHtml(p.authors)}${settings.resultsOpen ? ' &mdash; ' + escapeHtml(voterNames) : ''}</div>
+                </div>
+                ${isW1 ? '<span style="background:#d4af37;color:white;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:700;">&#x1F3C6; Winner</span>' : ''}
+                ${isW2 ? '<span style="background:#276749;color:white;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:700;">&#x1F393; Winner</span>' : ''}
+                <button onclick="setCommitteeWinner('${winnerKey1}', ${pid})" style="padding:4px 10px;background:${isW1?'#c6f6d5':'white'};border:1px solid #e2e8f0;border-radius:6px;font-size:12px;cursor:pointer;">${isW1?'&#x2713; Winner':'Set Winner'}</button>
+                ${w2btn}
+            </div>`;
+        }).join('');
+    };
+    const memberDisplay = members.length > 0
+        ? members.map(m => decodeURIComponent(m.replace(/_/g, '%'))).join(', ')
+        : 'None yet';
+    el.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding:14px 16px;background:#f7fafc;border-radius:10px;border:1px solid #e2e8f0;">
+            <div style="flex:1;">
+                <div style="font-weight:700;color:#1a202c;margin-bottom:2px;">Results Visibility</div>
+                <div style="font-size:13px;color:#718096;">${settings.resultsOpen ? 'Results are OPEN &mdash; committee members can see nomination counts' : 'Results are CLOSED &mdash; only organizers can see counts'}</div>
+            </div>
+            <button onclick="toggleCommitteeResults()" style="padding:9px 20px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;${toggleStyle}">${settings.resultsOpen ? '&#x1F512; Close Results' : '&#x1F513; Open Results to Committee'}</button>
+        </div>
+        <div style="margin-bottom:16px;font-size:13px;color:#718096;">Committee members who have voted: <strong>${memberDisplay}</strong></div>
+        <h3 style="font-size:15px;margin:20px 0 10px;color:#1a365d;">&#x2B50; Best Paper Nominations</h3>
+        ${renderNomList(sortedBest, memberVoters, 'bestPaper', null)}
+        <h3 style="font-size:15px;margin:20px 0 10px;color:#276749;">&#x1F393; Best Student Paper Nominations</h3>
+        ${renderNomList(sortedStudent, studentVoters, 'studentPaper1', 'studentPaper2')}
+    `;
+}
+
+function toggleCommitteeResults() {
+    const current = (window.committeeSettings || {}).resultsOpen;
+    if (!window.committeeSettings) window.committeeSettings = {};
+    window.committeeSettings.resultsOpen = !current;
+    db.ref('committeeData/settings/resultsOpen').set(!current)
+        .then(() => renderCommitteeTab());
+}
+
+function setCommitteeWinner(key, paperId) {
+    if (!window.committeeSettings) window.committeeSettings = {};
+    if (!window.committeeSettings.winners) window.committeeSettings.winners = {};
+    const current = window.committeeSettings.winners[key];
+    const newVal = (current == paperId) ? null : paperId;
+    window.committeeSettings.winners[key] = newVal;
+    db.ref('committeeData/settings/winners/' + key).set(newVal)
+        .then(() => renderCommitteeTab());
 }
 
 // ============================================================
