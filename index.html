@@ -3405,6 +3405,30 @@ function renderEmailTracking() {
         return changes.some(c => c.id === p.id && NOTIFY_TYPES.has(c.from) && NOTIFY_TYPES.has(c.to) && c.from !== c.to);
     });
 
+    // Build grouped re-notify HTML: one sub-section per specific from→to direction
+    function buildRenotifyGroupedHtml(papers) {
+        if (papers.length === 0) return '';
+        // Map each paper to its most recent relevant change direction
+        const withChange = papers.map(p => {
+            const last = changes.slice().reverse().find(c =>
+                c.id === p.id && NOTIFY_TYPES.has(c.from) && NOTIFY_TYPES.has(c.to) && c.from !== c.to);
+            return { p, from: last ? last.from : '?', to: last ? last.to : '?' };
+        });
+        // Group by "from → to"
+        const groups = {};
+        withChange.forEach(({ p, from, to }) => {
+            const key = from + ' → ' + to;
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(p);
+        });
+        return Object.entries(groups).map(([key, grpPapers]) => `
+            <div style="font-size:14px;font-weight:700;color:#c05621;margin:16px 0 6px;padding:7px 14px;background:#fffaf0;border-left:4px solid #ed8936;border-radius:0 6px 6px 0;">
+                &#x1F504; ${escapeHtml(key)} &mdash; Re-notify (${grpPapers.length})
+            </div>
+            ${buildRenotifyTable(grpPapers.slice().sort((a,b) => a.id - b.id))}`
+        ).join('');
+    }
+
     // ---- Pending: split into sections or show single type based on typeVal ----
     if (filterVal === 'pending') {
         if (pending.length === 0 && renotifyPapers.length === 0) {
@@ -3418,11 +3442,7 @@ function renderEmailTracking() {
             const bgColor = typeVal === 'ip' ? '#f0fff4' : '#ebf8ff';
             const textColor = typeVal === 'ip' ? '#276749' : '#2b6cb0';
             const sorted = pending.slice().sort((a,b) => a.id - b.id);
-            const renotifyHtml = renotifyPapers.length > 0 ? `
-                <div style="font-size:14px;font-weight:700;color:#c05621;margin:16px 0 6px;padding:7px 14px;background:#fffaf0;border-left:4px solid #ed8936;border-radius:0 6px 6px 0;">
-                    &#x1F504; Status Changed (In-Person ↔ Online) &mdash; Re-notify (${renotifyPapers.length})
-                </div>
-                ${buildRenotifyTable(renotifyPapers.slice().sort((a,b) => a.id - b.id))}` : '';
+            const renotifyHtml = buildRenotifyGroupedHtml(renotifyPapers);
             document.getElementById('emailTrackingList').innerHTML =
                 `<div style="margin-bottom:10px;display:flex;align-items:center;gap:8px;">
                     <label style="font-size:13px;color:#718096;">
@@ -3439,11 +3459,7 @@ function renderEmailTracking() {
         // All types: split sections
         const pIP = pending.filter(p => paperStates[p.id] === 'Accepted (In-Person)').sort((a,b) => a.id - b.id);
         const pOL = pending.filter(p => paperStates[p.id] === 'Accepted (Online - PhD)').sort((a,b) => a.id - b.id);
-        const renotifyHtmlAll = renotifyPapers.length > 0 ? `
-            <div style="font-size:14px;font-weight:700;color:#c05621;margin:16px 0 6px;padding:7px 14px;background:#fffaf0;border-left:4px solid #ed8936;border-radius:0 6px 6px 0;">
-                &#x1F504; Status Changed (In-Person ↔ Online) &mdash; Re-notify (${renotifyPapers.length})
-            </div>
-            ${buildEmailTable(renotifyPapers.slice().sort((a,b) => a.id - b.id))}` : '';
+        const renotifyHtmlAll = buildRenotifyGroupedHtml(renotifyPapers);
         document.getElementById('emailTrackingList').innerHTML =
             `<div style="margin-bottom:10px;display:flex;align-items:center;gap:8px;">
                 <label style="font-size:13px;color:#718096;">
