@@ -3351,9 +3351,17 @@ function renderEmailTracking() {
             : allAccepted;
     }
 
+    // ---- Papers already emailed but status switched between in-person/online ----
+    const NOTIFY_TYPES = new Set(['Accepted (In-Person)', 'Accepted (Online - PhD)', 'Accepted (In-Person) - Cannot Attend']);
+    const renotifyPapers = PAPERS.filter(p => {
+        if (!NOTIFY_TYPES.has(paperStates[p.id])) return false;
+        if (!log[p.id]) return false; // not yet emailed → already in pending
+        return changes.some(c => c.id === p.id && NOTIFY_TYPES.has(c.from) && NOTIFY_TYPES.has(c.to) && c.from !== c.to);
+    });
+
     // ---- Pending: split into sections or show single type based on typeVal ----
     if (filterVal === 'pending') {
-        if (pending.length === 0) {
+        if (pending.length === 0 && renotifyPapers.length === 0) {
             document.getElementById('emailTrackingList').innerHTML = '<div class="empty-state"><p>&#x2705; All accepted papers have been emailed!</p></div>';
             return;
         }
@@ -3364,6 +3372,11 @@ function renderEmailTracking() {
             const bgColor = typeVal === 'ip' ? '#f0fff4' : '#ebf8ff';
             const textColor = typeVal === 'ip' ? '#276749' : '#2b6cb0';
             const sorted = pending.slice().sort((a,b) => a.id - b.id);
+            const renotifyHtml = renotifyPapers.length > 0 ? `
+                <div style="font-size:14px;font-weight:700;color:#c05621;margin:16px 0 6px;padding:7px 14px;background:#fffaf0;border-left:4px solid #ed8936;border-radius:0 6px 6px 0;">
+                    &#x1F504; Status Changed (In-Person ↔ Online) &mdash; Re-notify (${renotifyPapers.length})
+                </div>
+                ${buildEmailTable(renotifyPapers.slice().sort((a,b) => a.id - b.id))}` : '';
             document.getElementById('emailTrackingList').innerHTML =
                 `<div style="margin-bottom:10px;display:flex;align-items:center;gap:8px;">
                     <label style="font-size:13px;color:#718096;">
@@ -3374,12 +3387,17 @@ function renderEmailTracking() {
                 <div style="font-size:14px;font-weight:700;color:${textColor};margin:4px 0 6px;padding:7px 14px;background:${bgColor};border-left:4px solid ${borderColor};border-radius:0 6px 6px 0;">
                     ${label} &mdash; Pending Email (${pending.length})
                 </div>
-                ${buildEmailTable(sorted)}`;
+                ${buildEmailTable(sorted)}${renotifyHtml}`;
             return;
         }
         // All types: split sections
         const pIP = pending.filter(p => paperStates[p.id] === 'Accepted (In-Person)').sort((a,b) => a.id - b.id);
         const pOL = pending.filter(p => paperStates[p.id] === 'Accepted (Online - PhD)').sort((a,b) => a.id - b.id);
+        const renotifyHtmlAll = renotifyPapers.length > 0 ? `
+            <div style="font-size:14px;font-weight:700;color:#c05621;margin:16px 0 6px;padding:7px 14px;background:#fffaf0;border-left:4px solid #ed8936;border-radius:0 6px 6px 0;">
+                &#x1F504; Status Changed (In-Person ↔ Online) &mdash; Re-notify (${renotifyPapers.length})
+            </div>
+            ${buildEmailTable(renotifyPapers.slice().sort((a,b) => a.id - b.id))}` : '';
         document.getElementById('emailTrackingList').innerHTML =
             `<div style="margin-bottom:10px;display:flex;align-items:center;gap:8px;">
                 <label style="font-size:13px;color:#718096;">
@@ -3394,7 +3412,7 @@ function renderEmailTracking() {
             <div style="font-size:14px;font-weight:700;color:#2b6cb0;margin:16px 0 6px;padding:7px 14px;background:#ebf8ff;border-left:4px solid #4299e1;border-radius:0 6px 6px 0;">
                 &#x1F4BB; Online (PhD) &mdash; Pending Email (${pOL.length})
             </div>
-            ${buildEmailTable(pOL)}`;
+            ${buildEmailTable(pOL)}${renotifyHtmlAll}`;
         return;
     }
 
