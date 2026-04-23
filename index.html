@@ -3157,12 +3157,13 @@ function renderChangesTab() {
 
 function exportChangesCSV() {
     if (changes.length === 0) { alert('No changes to export.'); return; }
-    const header = ['Timestamp', 'User', 'Paper ID', 'Title', 'Email', 'From', 'To'];
+    const header = ['Timestamp', 'User', 'Paper ID', 'Title', 'Presenter Name', 'Email', 'From', 'To'];
     const rows = changes.map(c => {
         const paper = PAPERS.find(p => p.id === c.id);
-        const email = (paper && paper.email) ? paper.email : '';
+        const name  = (paper && paper.authors) ? paper.authors : '';
+        const email = (paper && paper.email)   ? paper.email   : '';
         const csvCell = v => '"' + String(v || '').replace(/"/g, '""') + '"';
-        return [c.timestamp, c.user || '', c.id, c.title || '', email, c.from || '', c.to || ''].map(csvCell).join(',');
+        return [c.timestamp, c.user || '', c.id, c.title || '', name, email, c.from || '', c.to || ''].map(csvCell).join(',');
     });
     const csv = [header.join(','), ...rows].join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
