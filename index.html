@@ -3243,6 +3243,52 @@ function buildEmailTable(papers) {
     </table>`;
 }
 
+function buildRenotifyTable(papers) {
+    const log = window.emailLog || {};
+    const NOTIFY_TYPES = new Set(['Accepted (In-Person)', 'Accepted (Online - PhD)', 'Accepted (In-Person) - Cannot Attend']);
+    if (papers.length === 0) {
+        return '<p style="color:#a0aec0;font-size:13px;padding:6px 0 12px;">None.</p>';
+    }
+    return `<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:4px;">
+        <thead>
+            <tr style="background:#fff8f0;border-bottom:2px solid #e2e8f0;">
+                <th style="padding:8px 6px;text-align:left;width:28px;"></th>
+                <th style="padding:8px 6px;text-align:left;">ID</th>
+                <th style="padding:8px 6px;text-align:left;">Title</th>
+                <th style="padding:8px 6px;text-align:left;">Presenter / Author</th>
+                <th style="padding:8px 6px;text-align:left;">Email</th>
+                <th style="padding:8px 6px;text-align:left;">Status Change</th>
+                <th style="padding:8px 6px;text-align:left;">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${papers.map(p => {
+                const entry = log[p.id];
+                const emailAddr = p.email || '';
+                const presenter = p.presenter || p.authors;
+                // Find the most recent relevant status-switch change for this paper
+                const lastChange = changes.slice().reverse().find(c =>
+                    c.id === p.id && NOTIFY_TYPES.has(c.from) && NOTIFY_TYPES.has(c.to) && c.from !== c.to);
+                const changeLabel = lastChange
+                    ? `<span style="color:#744210;font-size:12px;font-weight:600;">${escapeHtml(lastChange.from)}</span>
+                       <span style="color:#c05621;margin:0 4px;">→</span>
+                       <span style="color:#744210;font-size:12px;font-weight:600;">${escapeHtml(lastChange.to)}</span>
+                       <br><span style="font-size:11px;color:#a0aec0;">${lastChange.timestamp || ''}</span>`
+                    : '';
+                return `<tr style="border-bottom:1px solid #f0f0f0;background:#fffaf0;">
+                    <td style="padding:6px;"><input type="checkbox" class="email-select-cb" data-id="${p.id}"></td>
+                    <td style="padding:6px;color:#a0aec0;">#${p.id}</td>
+                    <td style="padding:6px;max-width:240px;"><span style="cursor:pointer;color:#2b6cb0;" onclick="showDetail(${p.id})">${escapeHtml(p.title.length > 60 ? p.title.substring(0,60)+'…' : p.title)}</span></td>
+                    <td style="padding:6px;">${escapeHtml(presenter.length > 30 ? presenter.substring(0,30)+'…' : presenter)}</td>
+                    <td style="padding:6px;font-family:monospace;font-size:12px;color:${emailAddr ? '#2d3748' : '#c53030'}">${emailAddr || '⚠️ no email'}</td>
+                    <td style="padding:6px;">${changeLabel}</td>
+                    <td style="padding:6px;"><button class="btn btn-success" style="font-size:11px;padding:3px 8px;" onclick="markOneEmailed(${p.id})">Mark emailed</button></td>
+                </tr>`;
+            }).join('')}
+        </tbody>
+    </table>`;
+}
+
 function getEmailPendingPapers() {
     return PAPERS.filter(p => ACCEPTED_STATUSES.has(paperStates[p.id]) && !(window.emailLog || {})[p.id]);
 }
@@ -3376,7 +3422,7 @@ function renderEmailTracking() {
                 <div style="font-size:14px;font-weight:700;color:#c05621;margin:16px 0 6px;padding:7px 14px;background:#fffaf0;border-left:4px solid #ed8936;border-radius:0 6px 6px 0;">
                     &#x1F504; Status Changed (In-Person ↔ Online) &mdash; Re-notify (${renotifyPapers.length})
                 </div>
-                ${buildEmailTable(renotifyPapers.slice().sort((a,b) => a.id - b.id))}` : '';
+                ${buildRenotifyTable(renotifyPapers.slice().sort((a,b) => a.id - b.id))}` : '';
             document.getElementById('emailTrackingList').innerHTML =
                 `<div style="margin-bottom:10px;display:flex;align-items:center;gap:8px;">
                     <label style="font-size:13px;color:#718096;">
