@@ -828,6 +828,8 @@ function switchToOrganizer() {
 
 // Login/logout
 function doLogin(name) {
+    const pwd = prompt('Enter password:');
+    if (pwd !== 'ces2026') { alert('Incorrect password.'); return; }
     if (name === 'Other') {
         const custom = prompt('Enter your name:');
         if (!custom || !custom.trim()) return;
