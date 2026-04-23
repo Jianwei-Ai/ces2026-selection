@@ -111,6 +111,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .paper-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-color: #cbd5e0; }
 .paper-card.status-accepted { border-left: 4px solid #48bb78; }
 .paper-card.status-online { border-left: 4px solid #4299e1; }
+.paper-card.status-cannot-attend { border-left: 4px solid #ed8936; }
 .paper-card.status-waitlist { border-left: 4px solid #ecc94b; }
 .paper-card.status-organized { border-left: 4px solid #9f7aea; }
 .paper-card.status-rejected { border-left: 4px solid #fc8181; }
@@ -380,6 +381,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
                 <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#4299e1;flex-shrink:0;"></span>
                 <span style="flex:1;">Online (PhD)</span>
                 <span style="color:#a0aec0;font-size:11px;" id="sf_online_count"></span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:13px;">
+                <input type="checkbox" id="sf_cannot_attend" checked onchange="currentPage=1;applyFilters();">
+                <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ed8936;flex-shrink:0;"></span>
+                <span style="flex:1;">Cannot Attend</span>
+                <span style="color:#a0aec0;font-size:11px;" id="sf_cannot_attend_count"></span>
             </label>
             <label style="display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:5px;cursor:pointer;font-size:13px;">
                 <input type="checkbox" id="sf_waitlist" checked onchange="currentPage=1;applyFilters();">
@@ -1091,6 +1098,7 @@ const firebaseSync = {
 const STATUS_COLORS = {
     'Accepted (In-Person)': '#48bb78',
     'Accepted (Online - PhD)': '#4299e1',
+    'Accepted (In-Person) - Cannot Attend': '#ed8936',
     'Waitlist (In-Person)': '#ecc94b',
     'Rejected': '#fc8181'
 };
@@ -1098,6 +1106,7 @@ const STATUS_COLORS = {
 const STATUS_ORDER = [
     'Accepted (In-Person)',
     'Accepted (Online - PhD)',
+    'Accepted (In-Person) - Cannot Attend',
     'Waitlist (In-Person)',
     'Rejected'
 ];
@@ -1105,6 +1114,7 @@ const STATUS_ORDER = [
 const STATUS_CSS = {
     'Accepted (In-Person)': 'status-accepted',
     'Accepted (Online - PhD)': 'status-online',
+    'Accepted (In-Person) - Cannot Attend': 'status-cannot-attend',
     'Waitlist (In-Person)': 'status-waitlist',
     'Rejected': 'status-rejected'
 };
@@ -1181,6 +1191,7 @@ function renderStatusFilters() {
     PAPERS.forEach(p => { const s = paperStates[p.id]; if (s) counts[s] = (counts[s] || 0) + 1; });
     document.getElementById('sf_inperson_count').textContent = counts['Accepted (In-Person)'] || 0;
     document.getElementById('sf_online_count').textContent = counts['Accepted (Online - PhD)'] || 0;
+    document.getElementById('sf_cannot_attend_count').textContent = counts['Accepted (In-Person) - Cannot Attend'] || 0;
     document.getElementById('sf_waitlist_count').textContent = counts['Waitlist (In-Person)'] || 0;
     document.getElementById('sf_rejected_count').textContent = counts['Rejected'] || 0;
 }
@@ -1220,17 +1231,19 @@ function getFilteredPapers() {
     const chineseOnly = document.getElementById('filterChinese').checked;
 
     // Read status filter directly from static checkbox IDs — most reliable approach
-    const showInPerson  = document.getElementById('sf_inperson').checked;
-    const showOnline    = document.getElementById('sf_online').checked;
-    const showWaitlist  = document.getElementById('sf_waitlist').checked;
-    const showRejected  = document.getElementById('sf_rejected').checked;
+    const showInPerson     = document.getElementById('sf_inperson').checked;
+    const showOnline       = document.getElementById('sf_online').checked;
+    const showCannotAttend = document.getElementById('sf_cannot_attend').checked;
+    const showWaitlist     = document.getElementById('sf_waitlist').checked;
+    const showRejected     = document.getElementById('sf_rejected').checked;
 
     // Build a Set from the checked boxes; empty = treat as all selected
     const activeStatuses = new Set();
-    if (showInPerson)  activeStatuses.add('Accepted (In-Person)');
-    if (showOnline)    activeStatuses.add('Accepted (Online - PhD)');
-    if (showWaitlist)  activeStatuses.add('Waitlist (In-Person)');
-    if (showRejected)  activeStatuses.add('Rejected');
+    if (showInPerson)     activeStatuses.add('Accepted (In-Person)');
+    if (showOnline)       activeStatuses.add('Accepted (Online - PhD)');
+    if (showCannotAttend) activeStatuses.add('Accepted (In-Person) - Cannot Attend');
+    if (showWaitlist)     activeStatuses.add('Waitlist (In-Person)');
+    if (showRejected)     activeStatuses.add('Rejected');
     const statusFilterActive = activeStatuses.size > 0;
 
     // Field filter: null or empty Set → treat as all selected
