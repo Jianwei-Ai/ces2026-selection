@@ -3549,30 +3549,39 @@ function unmarkEmailed(id) {
 
 function exportPendingEmailsCSV() {
     const pending = getEmailPendingPapers();
-    if (pending.length === 0) { alert('No pending papers — all accepted papers have been emailed!'); return; }
-
+    const log = window.emailLog || {};
     const NOTIFY_TYPES = new Set(['Accepted (In-Person)', 'Accepted (Online - PhD)', 'Accepted (In-Person) - Cannot Attend']);
-    let csv = 'ID,Title,Authors,Presenter,Email,Status,StatusChange,IsOrganized,OrgSession,Affiliation\n';
-    pending.forEach(p => {
+    const renotify = PAPERS.filter(p => {
+        if (!NOTIFY_TYPES.has(paperStates[p.id])) return false;
+        if (!log[p.id]) return false;
+        return changes.some(c => c.id === p.id && NOTIFY_TYPES.has(c.from) && NOTIFY_TYPES.has(c.to) && c.from !== c.to);
+    });
+    if (pending.length === 0 && renotify.length === 0) { alert('No pending or re-notify papers!'); return; }
+
+    const makeRow = (p, type) => {
         const st = paperStates[p.id];
         const presenter = p.presenter || p.authors;
         const lastChange = changes.slice().reverse().find(c =>
             c.id === p.id && NOTIFY_TYPES.has(c.from) && NOTIFY_TYPES.has(c.to) && c.from !== c.to);
         const statusChange = lastChange ? (lastChange.from + ' → ' + lastChange.to) : '';
-        const row = [
+        return [
             p.id,
             '"' + p.title.replace(/"/g,'""') + '"',
             '"' + p.authors.replace(/"/g,'""') + '"',
             '"' + presenter.replace(/"/g,'""') + '"',
             '"' + (p.email || '').replace(/"/g,'""') + '"',
-            '"' + st + '"',
+            '"' + (st || '') + '"',
             '"' + statusChange + '"',
+            '"' + type + '"',
             p.isOrganized ? 'Yes' : 'No',
             '"' + (p.organizedSession || '').replace(/"/g,'""') + '"',
             '"' + (p.affiliation || '').replace(/"/g,'""') + '"'
         ].join(',');
-        csv += row + '\n';
-    });
+    };
+
+    let csv = 'ID,Title,Authors,Presenter,Email,Status,StatusChange,Type,IsOrganized,OrgSession,Affiliation\n';
+    pending.sort((a,b) => a.id - b.id).forEach(p => { csv += makeRow(p, 'Pending') + '\n'; });
+    renotify.sort((a,b) => a.id - b.id).forEach(p => { csv += makeRow(p, 'Re-notify') + '\n'; });
 
     const round = document.getElementById('emailRoundSelect').value;
     const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: 'text/csv;charset=utf-8;' });
