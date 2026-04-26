@@ -3551,10 +3551,14 @@ function exportPendingEmailsCSV() {
     const pending = getEmailPendingPapers();
     if (pending.length === 0) { alert('No pending papers — all accepted papers have been emailed!'); return; }
 
-    let csv = 'ID,Title,Authors,Presenter,Email,Status,IsOrganized,OrgSession,Affiliation\n';
+    const NOTIFY_TYPES = new Set(['Accepted (In-Person)', 'Accepted (Online - PhD)', 'Accepted (In-Person) - Cannot Attend']);
+    let csv = 'ID,Title,Authors,Presenter,Email,Status,StatusChange,IsOrganized,OrgSession,Affiliation\n';
     pending.forEach(p => {
         const st = paperStates[p.id];
         const presenter = p.presenter || p.authors;
+        const lastChange = changes.slice().reverse().find(c =>
+            c.id === p.id && NOTIFY_TYPES.has(c.from) && NOTIFY_TYPES.has(c.to) && c.from !== c.to);
+        const statusChange = lastChange ? (lastChange.from + ' → ' + lastChange.to) : '';
         const row = [
             p.id,
             '"' + p.title.replace(/"/g,'""') + '"',
@@ -3562,6 +3566,7 @@ function exportPendingEmailsCSV() {
             '"' + presenter.replace(/"/g,'""') + '"',
             '"' + (p.email || '').replace(/"/g,'""') + '"',
             '"' + st + '"',
+            '"' + statusChange + '"',
             p.isOrganized ? 'Yes' : 'No',
             '"' + (p.organizedSession || '').replace(/"/g,'""') + '"',
             '"' + (p.affiliation || '').replace(/"/g,'""') + '"'
